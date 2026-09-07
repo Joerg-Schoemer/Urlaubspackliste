@@ -10,9 +10,15 @@ import SwiftData
 
 @main
 struct UrlaubspacklisteApp: App {
+    
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            PackingList.self,
+            PackingItem.self,
+            Person.self,
+            ItemTemplate.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

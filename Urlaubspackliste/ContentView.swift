@@ -10,52 +10,77 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query(sort: \PackingList.erstelltAm, order: .reverse) private var packingLists: [PackingList]
+        
+    @State private var zeigeNeueListe = false
+    @State private var zeigeItemVerwaltung = false
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        NavigationStack {
+            Group {
+                if packingLists.isEmpty {
+                    ContentUnavailableView(
+                        "Noch keine Packliste",
+                        systemImage: "checklist",
+                        description: Text("Erstelle deine erste Packliste für die nächste Reise.")
+                    )
+                } else {
+                    List {
+                        ForEach(packingLists) { liste in
+                            NavigationLink(value: liste) {
+                                VStack(alignment: .leading) {
+                                    Text(liste.titel)
+                                        .font(.headline)
+                                    Text("\(liste.aktivitaet) · \(liste.jahreszeit)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .onDelete(perform: listeLoeschen)
                     }
                 }
-                .onDelete(perform: deleteItems)
+            }
+            .navigationTitle("Meine Packlisten")
+            .navigationDestination(for: PackingList.self) { liste in
+                PackingListeDetailView(liste: liste)
             }
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        zeigeItemVerwaltung = true
+                    } label: {
+                        Label("Artikel verwalten", systemImage: "list.bullet.clipboard")
+                    }
                 }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        zeigeNeueListe = true
+                    } label: {
+                        Label("Neue Packliste", systemImage: "plus")
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            .sheet(isPresented: $zeigeNeueListe) {
+                NeuePackListeView()
             }
+            .sheet(isPresented: $zeigeItemVerwaltung) {
+                ItemVerwaltungView()
+            }
+            .onAppear {
+                ItemDaten.seedFallsLeer(context: modelContext)
+            }
+        }
+    }
+
+    private func listeLoeschen(at offsets: IndexSet) {
+        for index in offsets {
+            modelContext.delete(packingLists[index])
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: PackingList.self, inMemory: true)
 }

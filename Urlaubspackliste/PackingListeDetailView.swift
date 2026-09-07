@@ -1,0 +1,162 @@
+//
+//  PackingListeDetailView.swift
+//  Urlaubspackliste
+//
+//  Created by Jörg Schömer on 06.09.26.
+//
+
+
+import SwiftUI
+import SwiftData
+
+struct PackingListeDetailView: View {
+    @Bindable var liste: PackingList
+    @State private var meinePerson: Person?
+    @State private var zeigePersonAuswahl = false
+    @State private var sharePaket: SharePaket?
+    @State private var teilenLaeuft = false
+    @State private var fehlerText: String?
+    
+    private var listeSchluessel: String {
+        "meinePerson_\(liste.titel)_\(liste.erstelltAm.timeIntervalSince1970)"
+    }
+    
+    private var sortierteItems: [PackingItem] {
+        (liste.items ?? []).sorted { $0.kategorie < $1.kategorie }
+    }
+    
+    private var gruppierteKategorien: [String] {
+        Array(Set(sortierteItems.map { $0.kategorie })).sorted()
+    }
+    
+    private var fortschritt: Double {
+        guard let meinePerson else { return 0 }
+        let items = liste.items ?? []
+        guard !items.isEmpty else { return 0 }
+        let erledigt = items.filter { $0.istAbgehakt(von: meinePerson) }.count
+        return Double(erledigt) / Double(items.count)
+    }
+    
+    var body: some View {
+        List {
+            if let meinePerson {
+                Section {
+                    ProgressView(value: fortschritt)
+                    Text("Du packst als: \(meinePerson.name)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                ForEach(gruppierteKategorien, id: \.self) { kategorie in
+                    Section(kategorie) {
+                        ForEach(sortierteItems.filter { $0.kategorie == kategorie }) { item in
+                            ItemZeile(item: item, person: meinePerson)
+                        }
+                    }
+                }
+            }
+            
+            if !(liste.personen ?? []).isEmpty {
+                Section("Mitreisende") {
+                    ForEach(liste.personen ?? []) { person in
+                        Text(person.name + (person.istKind ? " (Kind)" : ""))
+                    }
+                }
+            }
+        }
+        .navigationTitle(liste.titel)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    teilen()
+                } label: {
+                    if teilenLaeuft {
+                        ProgressView()
+                    } else {
+                        Label("Teilen", systemImage: "person.badge.plus")
+                    }
+                }
+                .disabled(teilenLaeuft)
+            }
+        }
+        .onAppear { personLaden() }
+        .sheet(isPresented: $zeigePersonAuswahl) {
+            PersonAuswahlView(personen: liste.personen ?? []) { ausgewaehlt in
+                meinePerson = ausgewaehlt
+                UserDefaults.standard.set(ausgewaehlt.name, forKey: listeSchluessel)
+                zeigePersonAuswahl = false
+            }
+        }
+        .sheet(item: $sharePaket) { paket in
+            CloudSharingView(share: paket.share, container: paket.container)
+        }
+        .alert("Fehler beim Teilen", isPresented: .constant(fehlerText != nil)) {
+            Button("OK") { fehlerText = nil }
+        } message: {
+            Text(fehlerText ?? "")
+        }
+    }
+    
+    private func teilen() {
+        teilenLaeuft = true
+        Task {
+            do {
+                let (share, container) = try await SharingManager.shared.fetchOrCreateShare(for: liste)
+                sharePaket = SharePaket(share: share, container: container)
+            } catch {
+                fehlerText = error.localizedDescription
+            }
+            teilenLaeuft = false
+        }
+    }
+    
+    private func personLaden() {
+        if let gespeicherterName = UserDefaults.standard.string(forKey: listeSchluessel),
+           let gefunden = (liste.personen ?? []).first(where: { $0.name == gespeicherterName }) {
+            meinePerson = gefunden
+        } else if meinePerson == nil {
+            zeigePersonAuswahl = true
+        }
+    }
+}
+
+private struct ItemZeile: View {
+    @Bindable var item: PackingItem
+    let person: Person
+    
+    private var abgehakt: Bool { item.istAbgehakt(von: person) }
+    
+    var body: some View {
+        Button {
+            item.toggleAbgehakt(fuer: person)
+        } label: {
+            HStack {
+                Image(systemName: abgehakt ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(abgehakt ? .green : .secondary)
+                Text(item.name)
+                    .strikethrough(abgehakt)
+                    .foregroundStyle(abgehakt ? .secondary : .primary)
+                if item.istGruppenartikel {
+                    Image(systemName: "person.2.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if !item.istGruppenartikel, let anzahl = item.gepacktVon?.count, anzahl > 0 {
+                    Text("\(anzahl)")
+                        .font(.caption2)
+                        .padding(6)
+                        .background(Circle().fill(.green.opacity(0.2)))
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+#Preview {
+    NavigationStack {
+        PackingListeDetailView(liste: PackingList(titel: "Test", aktivitaet: "Strand", unterkunftsart: "Hotel", jahreszeit: "Sommer"))
+    }
+}
