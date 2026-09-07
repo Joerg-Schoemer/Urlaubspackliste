@@ -11,10 +11,10 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \PackingList.erstelltAm, order: .reverse) private var packingLists: [PackingList]
-        
+    
     @State private var zeigeNeueListe = false
     @State private var zeigeItemVerwaltung = false
-
+    
     var body: some View {
         NavigationStack {
             Group {
@@ -72,10 +72,20 @@ struct ContentView: View {
             }
         }
     }
-
+    
     private func listeLoeschen(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(packingLists[index])
+        let zuLoeschen = offsets.map { packingLists[$0] }
+        
+        for liste in zuLoeschen {
+            if liste.istGeteilt {
+                let zoneName = liste.zoneName
+                let ownerName = liste.ownerName
+                let istBesitzer = liste.istBesitzer
+                Task {
+                    await SharingManager.shared.zoneLoeschen(zoneName: zoneName, ownerName: ownerName, istBesitzer: istBesitzer)
+                }
+            }
+            modelContext.delete(liste)
         }
     }
 }

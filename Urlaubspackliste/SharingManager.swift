@@ -62,22 +62,39 @@ final class SharingManager {
     }
     
     private func recordsSpeichern(_ records: [CKRecord]) async throws {
+        var einzelFehler: Error?
+        
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
             operation.isAtomic = true
             operation.savePolicy = .allKeys
+            
+            operation.perRecordSaveBlock = { recordID, result in
+                if case .failure(let error) = result {
+                    print("❌ Fehler bei \(recordID.recordName): \(error)")
+                    einzelFehler = error
+                }
+            }
+            
             operation.modifyRecordsResultBlock = { result in
                 switch result {
-                case .success: continuation.resume()
-                case .failure(let error): continuation.resume(throwing: error)
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: error)
                 }
             }
             container.privateCloudDatabase.add(operation)
+        }
+        
+        if let einzelFehler {
+            throw einzelFehler
         }
     }
 }
 
 extension SharingManager {
+
     /// Lädt alle Items und Personen einer Liste als verknüpfte Kind-Records hoch.
     func pushAllItems(for liste: PackingList) async throws {
         let zoneID = CKRecordZone.ID(zoneName: liste.zoneName, ownerName: CKCurrentUserDefaultName)
@@ -93,7 +110,10 @@ extension SharingManager {
             record["kategorie"] = item.kategorie as CKRecordValue
             record["istGruppenartikel"] = item.istGruppenartikel as CKRecordValue
             record["gruppeAbgehakt"] = item.gruppeAbgehakt as CKRecordValue
-            record["gepacktVonIDs"] = (item.gepacktVon ?? []).map { $0.id.uuidString } as CKRecordValue
+            let gepacktVonIDs = (item.gepacktVon ?? []).map { $0.id.uuidString }
+            if !gepacktVonIDs.isEmpty {
+                record["gepacktVonIDs"] = gepacktVonIDs as CKRecordValue
+            }
             record.parent = parentRef
             records.append(record)
         }
@@ -107,8 +127,57 @@ extension SharingManager {
             records.append(record)
         }
         
-        guard !records.isEmpty else { return }
-        try await recordsSpeichern(records)
+        print("Anzahl Items in der Liste: \((liste.items ?? []).count)")
+        print("Anzahl Personen in der Liste: \((liste.personen ?? []).count)")
+        print("Zu speichernde Records: \(records.count)")
+        
+        guard !records.isEmpty else {
+            print("Keine Records zum Hochladen vorhanden - Abbruch.")
+            return
+        }
+
+        do {
+            try await recordsSpeichern(records)
+            print("Items und Personen erfolgreich hochgeladen.")
+        } catch {
+            print("Fehler beim Hochladen von Items/Personen: \(error)")
+            throw error
+        }
     }
 }
 
+extension SharingManager {
+
+    func pruefeHochgeladeneRecords(for liste: PackingList) async {
+        let zoneID = CKRecordZone.ID(zoneName: liste.zoneName, ownerName: CKCurrentUserDefaultName)
+        
+        guard let erstesItem = (liste.items ?? []).first else {
+            print("Keine lokalen Items zum Prüfen vorhanden.")
+            return
+        }
+        let recordID = CKRecord.ID(recordName: "Item-\(erstesItem.id.uuidString)", zoneID: zoneID)
+        
+        do {
+            let record = try await container.privateCloudDatabase.record(for: recordID)
+            print("Record gefunden: \(record.recordType), Felder: \(record.allKeys())")
+        } catch {
+            print("Record NICHT gefunden: \(error)")
+        }
+    }
+}
+
+extension SharingManager {
+    
+    func zoneLoeschen(zoneName: String, ownerName: String?, istBesitzer: Bool) async {
+        guard !zoneName.isEmpty else { return }
+        let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: ownerName ?? CKCurrentUserDefaultName)
+        let datenbank = istBesitzer ? container.privateCloudDatabase : container.sharedCloudDatabase
+        
+        do {
+            _ = try await datenbank.deleteRecordZone(withID: zoneID)
+            print("Zone erfolgreich gelöscht: \(zoneID)")
+        } catch {
+            print("Fehler beim Löschen der Zone (evtl. bereits gelöscht): \(error)")
+        }
+    }
+}

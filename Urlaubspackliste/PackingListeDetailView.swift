@@ -104,6 +104,7 @@ struct PackingListeDetailView: View {
             do {
                 let (share, container) = try await SharingManager.shared.fetchOrCreateShare(for: liste)
                 sharePaket = SharePaket(share: share, container: container)
+                await SharingManager.shared.pruefeHochgeladeneRecords(for: liste)
             } catch {
                 fehlerText = error.localizedDescription
             }

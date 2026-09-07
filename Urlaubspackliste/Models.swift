@@ -30,6 +30,7 @@ final class PackingList {
     
     // Neu: Sharing-Metadaten
     var istGeteilt: Bool = false
+    var istBesitzer: Bool = true
     var zoneName: String = ""          // Name der eigenen CKRecordZone für diese Liste
     var ownerName: String?             // CloudKit-Zonen-Besitzer (nur für Mitglieder relevant)
     var shareRecordName: String?       // Verweis auf den CKShare-Record
