@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import Combine
 
 struct PackingListeDetailView: View {
     @Bindable var liste: PackingList
@@ -40,17 +41,10 @@ struct PackingListeDetailView: View {
     var body: some View {
         List {
             if let meinePerson {
-                Section {
-                    ProgressView(value: fortschritt)
-                    Text("Du packst als: \(meinePerson.name)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
                 ForEach(gruppierteKategorien, id: \.self) { kategorie in
                     Section(kategorie) {
                         ForEach(sortierteItems.filter { $0.kategorie == kategorie }) { item in
-                            ItemZeile(item: item, person: meinePerson)
+                            ItemZeile(item: item, person: meinePerson, liste: liste)
                         }
                     }
                 }
@@ -59,7 +53,18 @@ struct PackingListeDetailView: View {
             if !(liste.personen ?? []).isEmpty {
                 Section("Mitreisende") {
                     ForEach(liste.personen ?? []) { person in
-                        Text(person.name + (person.istKind ? " (Kind)" : ""))
+                        HStack {
+                            Text(person.name + (person.istKind ? " (Kind)" : ""))
+                            Spacer()
+                            if person.id == meinePerson?.id {
+                                Text("Du")
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(.blue))
+                            }
+                        }
                     }
                 }
             }
@@ -67,6 +72,14 @@ struct PackingListeDetailView: View {
         .navigationTitle(liste.titel)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 4) {
+                    Text(liste.titel)
+                        .font(.headline)
+                    ProgressView(value: fortschritt)
+                        .frame(width: 160)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     teilen()
@@ -96,6 +109,18 @@ struct PackingListeDetailView: View {
         } message: {
             Text(fehlerText ?? "")
         }
+        .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
+            guard liste.istGeteilt else { return }
+            print("🔄 Polling für Liste: \(liste.titel), istBesitzer: \(liste.istBesitzer)")
+            Task {
+                do {
+                    try await SharingManager.shared.listeAktualisieren(liste)
+                    print("✅ listeAktualisieren erfolgreich durchlaufen")
+                } catch {
+                    print("❌ Fehler bei listeAktualisieren: \(error)")
+                }
+            }
+        }
     }
     
     private func teilen() {
@@ -124,13 +149,23 @@ struct PackingListeDetailView: View {
 
 private struct ItemZeile: View {
     @Bindable var item: PackingItem
+
     let person: Person
+    let liste: PackingList
     
     private var abgehakt: Bool { item.istAbgehakt(von: person) }
     
     var body: some View {
         Button {
             item.toggleAbgehakt(fuer: person)
+            Task {
+                do {
+                    try await SharingManager.shared.itemAktualisieren(item, in: liste)
+                    print("✅ Item hochgeladen: \(item.name)")
+                } catch {
+                    print("❌ Fehler beim Hochladen von \(item.name): \(error)")
+                }
+            }
         } label: {
             HStack {
                 Image(systemName: abgehakt ? "checkmark.circle.fill" : "circle")

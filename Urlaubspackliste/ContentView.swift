@@ -11,6 +11,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \PackingList.erstelltAm, order: .reverse) private var packingLists: [PackingList]
+    @StateObject private var shareKoordinator = ShareAnnahmeKoordinator.shared
     
     @State private var zeigeNeueListe = false
     @State private var zeigeItemVerwaltung = false
@@ -69,6 +70,21 @@ struct ContentView: View {
             }
             .onAppear {
                 ItemDaten.seedFallsLeer(context: modelContext)
+            }
+            .onChange(of: shareKoordinator.annahmeZaehler) { _, _ in
+                guard let metadata = shareKoordinator.letzteMetadata else {
+                    print("Keine Metadata vorhanden beim onChange")
+                    return
+                }
+                print("onChange ausgelöst, starte geteilteListeUebernehmen")
+                Task {
+                    do {
+                        try await SharingManager.shared.geteilteListeUebernehmen(metadata: metadata, context: modelContext)
+                        print("geteilteListeUebernehmen erfolgreich abgeschlossen")
+                    } catch {
+                        print("Fehler in geteilteListeUebernehmen: \(error)")
+                    }
+                }
             }
         }
     }
