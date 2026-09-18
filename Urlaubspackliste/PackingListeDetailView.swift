@@ -17,24 +17,31 @@ struct PackingListeDetailView: View {
     @State private var sharePaket: SharePaket?
     @State private var teilenLaeuft = false
     @State private var fehlerText: String?
+    @State private var zeigeBearbeiten = false
     
     private var listeSchluessel: String {
         "meinePerson_\(liste.titel)_\(liste.erstelltAm.timeIntervalSince1970)"
     }
     
     private var sortierteItems: [PackingItem] {
-        (liste.items ?? []).sorted { $0.kategorie < $1.kategorie }
+        (liste.items ?? []).sorted {
+            $0.kategorie == $1.kategorie ? $0.name < $1.name : $0.kategorie < $1.kategorie
+        }
     }
-    
+
     private var gruppierteKategorien: [String] {
         Array(Set(sortierteItems.map { $0.kategorie })).sorted()
     }
     
     private var fortschritt: Double {
         guard let meinePerson else { return 0 }
+        return fortschritt(fuer: meinePerson)
+    }
+
+    private func fortschritt(fuer person: Person) -> Double {
         let items = liste.items ?? []
         guard !items.isEmpty else { return 0 }
-        let erledigt = items.filter { $0.istAbgehakt(von: meinePerson) }.count
+        let erledigt = items.filter { $0.istAbgehakt(von: person) }.count
         return Double(erledigt) / Double(items.count)
     }
     
@@ -54,8 +61,7 @@ struct PackingListeDetailView: View {
                 Section("Mitreisende") {
                     ForEach(liste.personen ?? []) { person in
                         HStack {
-                            Text(person.name + (person.istKind ? " (Kind)" : ""))
-                            Spacer()
+                            Text(person.name)
                             if person.id == meinePerson?.id {
                                 Text("Du")
                                     .font(.caption)
@@ -64,6 +70,9 @@ struct PackingListeDetailView: View {
                                     .padding(.vertical, 2)
                                     .background(Capsule().fill(.blue))
                             }
+                            Spacer()
+                            ProgressView(value: fortschritt(fuer: person))
+                                .frame(width: 80)
                         }
                     }
                 }
@@ -79,6 +88,14 @@ struct PackingListeDetailView: View {
                     ProgressView(value: fortschritt)
                         .frame(width: 160)
                 }
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    zeigeBearbeiten = true
+                } label: {
+                    Label("Bearbeiten", systemImage: "pencil")
+                }
+                .disabled(liste.istGeteilt)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -103,6 +120,9 @@ struct PackingListeDetailView: View {
         }
         .sheet(item: $sharePaket) { paket in
             CloudSharingView(share: paket.share, container: paket.container)
+        }
+        .sheet(isPresented: $zeigeBearbeiten) {
+            PackingListeBearbeitenView(liste: liste)
         }
         .alert("Fehler beim Teilen", isPresented: .constant(fehlerText != nil)) {
             Button("OK") { fehlerText = nil }

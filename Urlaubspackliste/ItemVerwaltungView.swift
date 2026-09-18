@@ -15,7 +15,8 @@ struct ItemVerwaltungView: View {
     @Query(sort: \ItemTemplate.name) private var vorlagen: [ItemTemplate]
     
     @State private var neueVorlage: ItemTemplate?
-    
+    @State private var zeigeAllesLoeschenBestaetigung = false
+
     var body: some View {
         NavigationStack {
             List {
@@ -39,7 +40,19 @@ struct ItemVerwaltungView: View {
             .navigationTitle("Artikel-Vorlagen")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Fertig") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "checkmark")
+                    }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(role: .destructive) {
+                        zeigeAllesLoeschenBestaetigung = true
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .disabled(vorlagen.isEmpty)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -51,12 +64,29 @@ struct ItemVerwaltungView: View {
                     }
                 }
             }
+            .confirmationDialog(
+                "Alle Artikel-Vorlagen löschen?",
+                isPresented: $zeigeAllesLoeschenBestaetigung,
+                titleVisibility: .visible
+            ) {
+                Button("Alle löschen", role: .destructive) {
+                    alleLoeschen()
+                }
+                Button("Abbrechen", role: .cancel) {}
+            } message: {
+                Text("Dies kann nicht rückgängig gemacht werden.")
+            }
             .sheet(item: $neueVorlage) { vorlage in
                 ItemVorlageBearbeitenView(vorlage: vorlage)
             }
         }
     }
-    
+
+    private func alleLoeschen() {
+        for vorlage in vorlagen { modelContext.delete(vorlage) }
+        try? modelContext.save()
+    }
+
     private func tagsText(_ vorlage: ItemTemplate) -> String {
         let teile = (vorlage.aktivitaeten + vorlage.jahreszeiten + vorlage.unterkunftsarten)
         return teile.isEmpty ? "Für alle Reisen" : teile.joined(separator: ", ")
@@ -65,8 +95,9 @@ struct ItemVerwaltungView: View {
 
 private struct ItemVorlageBearbeitenView: View {
     @Bindable var vorlage: ItemTemplate
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    
+
     @State private var aktivitaetenText = ""
     @State private var jahreszeitenText = ""
     @State private var unterkunftsartenText = ""
@@ -106,13 +137,23 @@ private struct ItemVorlageBearbeitenView: View {
             }
             .navigationTitle(vorlage.name.isEmpty ? "Neuer Artikel" : vorlage.name)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Fertig") {
+                    Button {
                         vorlage.aktivitaeten = tagsAusText(aktivitaetenText)
                         vorlage.jahreszeiten = tagsAusText(jahreszeitenText)
                         vorlage.unterkunftsarten = tagsAusText(unterkunftsartenText)
                         dismiss()
+                    } label: {
+                        Image(systemName: "checkmark")
                     }
+                    .disabled(vorlage.name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .onAppear {
@@ -120,6 +161,15 @@ private struct ItemVorlageBearbeitenView: View {
                 jahreszeitenText = vorlage.jahreszeiten.joined(separator: ", ")
                 unterkunftsartenText = vorlage.unterkunftsarten.joined(separator: ", ")
             }
+            .onDisappear {
+                abbrechen()
+            }
+        }
+    }
+
+    private func abbrechen() {
+        if vorlage.name.trimmingCharacters(in: .whitespaces).isEmpty {
+            modelContext.delete(vorlage)
         }
     }
     

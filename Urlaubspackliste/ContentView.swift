@@ -15,6 +15,7 @@ struct ContentView: View {
     
     @State private var zeigeNeueListe = false
     @State private var zeigeItemVerwaltung = false
+    @State private var teilenAufgehobenHinweis = false
     
     var body: some View {
         NavigationStack {
@@ -68,6 +69,11 @@ struct ContentView: View {
             .sheet(isPresented: $zeigeItemVerwaltung) {
                 ItemVerwaltungView()
             }
+            .alert("Teilen aufgehoben", isPresented: $teilenAufgehobenHinweis) {
+                Button("OK") {}
+            } message: {
+                Text("Das Teilen wurde aufgehoben, die Liste ist jetzt wieder bearbeitbar. Zum endgültigen Löschen erneut nach links wischen.")
+            }
             .onAppear {
                 ItemDaten.seedFallsLeer(context: modelContext)
             }
@@ -91,8 +97,19 @@ struct ContentView: View {
     
     private func listeLoeschen(at offsets: IndexSet) {
         let zuLoeschen = offsets.map { packingLists[$0] }
-        
+
         for liste in zuLoeschen {
+            if liste.istGeteilt && liste.istBesitzer {
+                // Erst Teilen aufheben, damit die Liste wieder bearbeitbar wird.
+                // Endgültig gelöscht wird sie erst bei einem erneuten Löschversuch (dann istGeteilt == false).
+                Task {
+                    await SharingManager.shared.teilenAufheben(for: liste)
+                    try? modelContext.save()
+                }
+                teilenAufgehobenHinweis = true
+                continue
+            }
+
             if liste.istGeteilt {
                 let zoneName = liste.zoneName
                 let ownerName = liste.ownerName

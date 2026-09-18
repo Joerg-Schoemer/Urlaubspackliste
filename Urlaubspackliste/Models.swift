@@ -6,15 +6,13 @@ import SwiftData
 final class Person {
     var id: UUID = UUID()
     var name: String = ""
-    var istKind: Bool = false
     var packingList: PackingList?
-    
+
     // Items, die diese Person bereits gepackt hat
     var gepackteItems: [PackingItem]? = []
-    
-    init(name: String = "", istKind: Bool = false) {
+
+    init(name: String = "") {
         self.name = name
-        self.istKind = istKind
     }
 }
 

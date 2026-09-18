@@ -127,7 +127,6 @@ extension SharingManager {
             let recordID = CKRecord.ID(recordName: "Person-\(person.id.uuidString)", zoneID: zoneID)
             let record = CKRecord(recordType: "PersonRecord", recordID: recordID)
             record["name"] = person.name as CKRecordValue
-            record["istKind"] = person.istKind as CKRecordValue
             record["listRef"] = parentRef as CKRecordValue
             record.parent = parentRef
             records.append(record)
@@ -173,18 +172,27 @@ extension SharingManager {
 }
 
 extension SharingManager {
-    
+
     func zoneLoeschen(zoneName: String, ownerName: String?, istBesitzer: Bool) async {
         guard !zoneName.isEmpty else { return }
         let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: ownerName ?? CKCurrentUserDefaultName)
         let datenbank = istBesitzer ? container.privateCloudDatabase : container.sharedCloudDatabase
-        
+
         do {
             _ = try await datenbank.deleteRecordZone(withID: zoneID)
             print("Zone erfolgreich gelöscht: \(zoneID)")
         } catch {
             print("Fehler beim Löschen der Zone (evtl. bereits gelöscht): \(error)")
         }
+    }
+
+    /// Hebt das Teilen einer eigenen Liste auf: löscht die CloudKit-Zone (inkl. Share) vollständig,
+    /// die lokale Liste bleibt erhalten und ist danach wieder bearbeitbar.
+    func teilenAufheben(for liste: PackingList) async {
+        await zoneLoeschen(zoneName: liste.zoneName, ownerName: liste.ownerName, istBesitzer: true)
+        liste.istGeteilt = false
+        liste.shareRecordName = nil
+        liste.ownerName = nil
     }
 }
 
@@ -238,8 +246,7 @@ extension SharingManager {
             guard let record = try? ergebnis.get() else { continue }
             let uuid = UUID(uuidString: String(record.recordID.recordName.dropFirst("Person-".count))) ?? UUID()
             let person = Person(
-                name: record["name"] as? String ?? "",
-                istKind: record["istKind"] as? Bool ?? false
+                name: record["name"] as? String ?? ""
             )
             person.id = uuid
             personenNachID[uuid] = person

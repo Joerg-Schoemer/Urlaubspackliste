@@ -31,7 +31,11 @@ struct NeuePackListeView: View {
     @State private var ausgewaehlteUnterkunft = ""
     @State private var ausgewaehlteJahreszeit = ""
     @State private var personen: [Person] = [Person(name: "")]
-    
+
+    private var mindestensEinePersonAngegeben: Bool {
+        personen.contains { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -41,14 +45,16 @@ struct NeuePackListeView: View {
                 
                 Section("Aktivität") {
                     Picker("Aktivität", selection: $ausgewaehlteAktivitaet) {
-                        ForEach(aktivitaeten, id: \.self) { Text($0) }
+                        Text("Keine Angabe").tag("")
+                        ForEach(aktivitaeten, id: \.self) { Text($0).tag($0) }
                     }
                     .pickerStyle(.inline)
                 }
-                
+
                 Section("Unterkunftsart") {
                     Picker("Unterkunftsart", selection: $ausgewaehlteUnterkunft) {
-                        ForEach(unterkunftsarten, id: \.self) { Text($0) }
+                        Text("Keine Angabe").tag("")
+                        ForEach(unterkunftsarten, id: \.self) { Text($0).tag($0) }
                     }
                     .pickerStyle(.inline)
                 }
@@ -78,16 +84,18 @@ struct NeuePackListeView: View {
             .navigationTitle("Neue Packliste")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Erstellen") { listeErstellen() }
-                        .disabled(titel.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(titel.trimmingCharacters(in: .whitespaces).isEmpty || !mindestensEinePersonAngegeben)
                 }
             }
             .onAppear {
-                if ausgewaehlteAktivitaet.isEmpty { ausgewaehlteAktivitaet = aktivitaeten.first ?? "" }
-                if ausgewaehlteUnterkunft.isEmpty { ausgewaehlteUnterkunft = unterkunftsarten.first ?? "" }
                 if ausgewaehlteJahreszeit.isEmpty { ausgewaehlteJahreszeit = jahreszeiten.first ?? "" }
             }
         }
@@ -100,7 +108,7 @@ struct NeuePackListeView: View {
             unterkunftsart: ausgewaehlteUnterkunft,
             jahreszeit: ausgewaehlteJahreszeit
         )
-        neueListe.personen = personen
+        neueListe.personen = personen.filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
         
         let passendeItems = ItemDaten.alle.filter { vorlage in
             let aktivitaetPasst = vorlage.aktivitaeten.isEmpty || vorlage.aktivitaeten.contains(ausgewaehlteAktivitaet)
@@ -118,20 +126,11 @@ struct NeuePackListeView: View {
     }
 }
 
-private struct PersonZeile: View {
+struct PersonZeile: View {
     @Bindable var person: Person
-    
+
     var body: some View {
-        HStack {
-            TextField("Name eingeben", text: $person.name)
-            Spacer()
-            Toggle(isOn: $person.istKind) {
-                Text("Kind")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .labelsHidden()
-        }
+        TextField("Name eingeben", text: $person.name)
     }
 }
 
