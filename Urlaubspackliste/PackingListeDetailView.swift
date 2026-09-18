@@ -193,17 +193,18 @@ private struct ItemZeile: View {
                 Text(item.name)
                     .strikethrough(abgehakt)
                     .foregroundStyle(abgehakt ? .secondary : .primary)
+                Spacer()
                 if item.istGruppenartikel {
                     Image(systemName: "person.2.fill")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if !item.istGruppenartikel, let anzahl = item.gepacktVon?.count, anzahl > 0 {
-                    Text("\(anzahl)")
-                        .font(.caption2)
-                        .padding(6)
-                        .background(Circle().fill(.green.opacity(0.2)))
+                } else {
+                    if let anzahl = item.gepacktVon?.count, anzahl > 0 {
+                        Text("\(anzahl)")
+                            .font(.caption2)
+                            .padding(4)
+                            .background(Circle().fill(.green.opacity(0.2)))
+                    }
                 }
             }
         }
