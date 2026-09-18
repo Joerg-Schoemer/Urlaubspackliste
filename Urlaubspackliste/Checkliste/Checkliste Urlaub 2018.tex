@@ -1,0 +1,59 @@
+%\documentclass[14pt,parskip,a4paper]{scrartcl}
+\documentclass[paper=A4, fontsize=12pt, pagesize, DIV=calc, headings=small, ngerman]{scrartcl}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+% Umlaute können so in den Text: ä statt \"a
+% habe mit den Papierrändern gefuscht, weil ich die Tabelle nicht nach links verschoben bekommen habe ToDo!!!
+\usepackage[a4paper, left=4cm, right=-26mm, top=1.5cm, bottom=1.5cm ]{geometry}
+\usepackage{babel, wasysym, multicol}
+
+\newenvironment{VIERitemize}{
+    \hspace*{-26mm}Joh\hspace{2mm}Pet\hspace{2mm}Ver\hspace{2mm}Jör
+    \renewcommand{\labelitemi}{\Square\hspace{5mm}\Square\hspace{5mm}\Square\hspace{5mm}\Square\hspace{2mm}}
+    \begin{itemize}\itemsep -2pt}{\end{itemize}}
+
+\newenvironment{ELTERNitemize}{
+    \hspace*{-6mm}Jör\hspace{5mm}Ver
+    \renewcommand{\labelitemi}{\Square\hspace{5mm}\Square\hspace{2mm}}
+    \begin{itemize}\itemsep -2pt}{\end{itemize}}
+
+\newenvironment{KINDERitemize}{
+    \hspace*{-6mm}Pet\hspace{5mm}Joh
+    \renewcommand{\labelitemi}{\Square\hspace{5mm}\Square\hspace{2mm}}
+    \begin{itemize}\itemsep -2pt}{\end{itemize}}
+
+\newenvironment{ONEitemize}{
+    \renewcommand{\labelitemi}{\Square\hspace{2mm}}
+    \begin{itemize}\itemsep -2pt}{\end{itemize}}
+
+\newenvironment{TWOitemize}{
+    \renewcommand{\labelitemi}{\Square\hspace{5mm}\Square\hspace{2mm}}
+    \begin{itemize}\itemsep -2pt}{\end{itemize}}
+
+\begin{document}
+    \pagenumbering{gobble}
+    \twocolumn
+
+    \addsec{Jörg}
+    \input{Allgemein}
+    \pagebreak
+    \addsec{Vero}
+    \input{Allgemein}
+    \pagebreak
+    \addsec{Peter}
+    \input{Allgemein}
+    \pagebreak
+    \addsec{Johanna}
+    \input{Allgemein}
+    \pagebreak
+    \input{Apotheke}
+    \input{Haushalt}
+    \input{Lebensmittel}
+%    \input{Wandern}
+    \input{Bootfahren}
+    \input{Camping}
+    \input{Auto}
+%    \input{Mahlzeiten}
+%    \input{Ski}
+    \input{Wohnung}
+\end{document}

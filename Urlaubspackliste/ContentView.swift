@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var zeigeNeueListe = false
     @State private var zeigeItemVerwaltung = false
     @State private var teilenAufgehobenHinweis = false
+    @State private var entfernteListen: [String] = []
     
     var body: some View {
         NavigationStack {
@@ -74,8 +75,19 @@ struct ContentView: View {
             } message: {
                 Text("Das Teilen wurde aufgehoben, die Liste ist jetzt wieder bearbeitbar. Zum endgültigen Löschen erneut nach links wischen.")
             }
+            .alert("Teilen beendet", isPresented: .constant(!entfernteListen.isEmpty)) {
+                Button("OK") { entfernteListen = [] }
+            } message: {
+                Text(entfernteListen.count == 1
+                     ? "\(entfernteListen[0]) wird nicht mehr mit dir geteilt und wurde von diesem Gerät entfernt."
+                     : "Diese Listen werden nicht mehr mit dir geteilt und wurden von diesem Gerät entfernt: "
+                        + entfernteListen.joined(separator: ", "))
+            }
             .onAppear {
                 ItemDaten.seedFallsLeer(context: modelContext)
+            }
+            .task {
+                await beendeteFreigabenAufraeumen()
             }
             .onChange(of: shareKoordinator.annahmeZaehler) { _, _ in
                 guard let metadata = shareKoordinator.letzteMetadata else {
@@ -95,6 +107,21 @@ struct ContentView: View {
         }
     }
     
+    /// Entfernt geteilte Listen, deren Besitzer das Teilen beendet hat.
+    ///
+    /// Notwendig auch hier und nicht nur in der Detailansicht: eine Liste, die nie geöffnet
+    /// wird, bliebe sonst als Karteileiche stehen.
+    private func beendeteFreigabenAufraeumen() async {
+        let beendet = await SharingManager.shared.beendeteFreigaben(unter: packingLists)
+        guard !beendet.isEmpty else { return }
+
+        for liste in beendet {
+            entfernteListen.append(liste.titel)
+            modelContext.delete(liste)
+        }
+        try? modelContext.save()
+    }
+
     private func listeLoeschen(at offsets: IndexSet) {
         let zuLoeschen = offsets.map { packingLists[$0] }
 

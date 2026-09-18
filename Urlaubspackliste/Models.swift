@@ -8,8 +8,24 @@ final class Person {
     var name: String = ""
     var packingList: PackingList?
 
+    // Zuordnung zu einem Teilnehmer des CloudKit-Shares (Apple-ID);
+    // leerer String bedeutet "keine Zuordnung".
+    //
+    // Die participantID ist die einzige Kennung, die Besitzer und Eingeladener
+    // gleich sehen: sie steht im Share-Record selbst. userRecordName dagegen ist
+    // blickwinkelabhängig und kennung liefert CloudKit für die eigene Apple-ID nicht.
+    var teilnehmerID: String = ""               // participantID im CKShare
+    var teilnehmerUserRecordName: String = ""   // CloudKit-Benutzerkennung des Teilnehmers
+    var teilnehmerKennung: String = ""          // E-Mail oder Telefonnummer der Apple-ID
+
     // Items, die diese Person bereits gepackt hat
     var gepackteItems: [PackingItem]? = []
+
+    /// Eine Zuordnung kann allein über die Apple-ID-Kennung bestehen, solange CloudKit
+    /// die Benutzerkennung noch nicht liefert (Einladung noch nicht angenommen).
+    var istZugeordnet: Bool {
+        !teilnehmerID.isEmpty || !teilnehmerUserRecordName.isEmpty || !teilnehmerKennung.isEmpty
+    }
 
     init(name: String = "") {
         self.name = name
