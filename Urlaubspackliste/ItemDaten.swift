@@ -144,8 +144,14 @@ struct ItemDaten {
     
     @MainActor
     static func seedFallsLeer(context: ModelContext) {
-        let bestehende = try? context.fetch(FetchDescriptor<ItemTemplate>())
-        guard (bestehende ?? []).isEmpty else { return }
+        let bestehende = (try? context.fetch(FetchDescriptor<ItemTemplate>())) ?? []
+        
+        // Ist schon etwas da, wird nichts ergänzt - sonst kämen gelöschte Vorlagen zurück.
+        // Stattdessen werden Kopien aus früheren Doppel-Seeds aufgeräumt.
+        guard bestehende.isEmpty else {
+            duplikateEntfernen(bestehende, context: context)
+            return
+        }
         
         for vorlage in alle {
             let template = ItemTemplate(
@@ -157,6 +163,42 @@ struct ItemDaten {
                 unterkunftsarten: vorlage.unterkunftsarten
             )
             context.insert(template)
+        }
+        
+        // Sofort sichern: onAppear kann erneut feuern, und ein ungesicherter
+        // Kontext lieferte oben wieder ein leeres Ergebnis - der Katalog
+        // würde ein zweites Mal angelegt.
+        try? context.save()
+    }
+    
+    /// Entfernt exakte Kopien einer Vorlage und behält jeweils die erste.
+    ///
+    /// Verglichen wird der vollständige Inhalt, nicht nur der Name. Zwei
+    /// gleichnamige Vorlagen mit unterschiedlichen Merkmalen bleiben damit
+    /// erhalten - die hat jemand bewusst angelegt oder bearbeitet.
+    @MainActor
+    private static func duplikateEntfernen(_ vorlagen: [ItemTemplate], context: ModelContext) {
+        var gesehen = Set<String>()
+        var entferntEtwas = false
+        
+        for vorlage in vorlagen {
+            let merkmale = [
+                vorlage.name,
+                vorlage.kategorie,
+                String(vorlage.istGruppenartikel),
+                vorlage.aktivitaeten.sorted().joined(separator: ","),
+                vorlage.jahreszeiten.sorted().joined(separator: ","),
+                vorlage.unterkunftsarten.sorted().joined(separator: ",")
+            ].joined(separator: "|")
+            
+            if gesehen.insert(merkmale).inserted == false {
+                context.delete(vorlage)
+                entferntEtwas = true
+            }
+        }
+        
+        if entferntEtwas {
+            try? context.save()
         }
     }
 }
