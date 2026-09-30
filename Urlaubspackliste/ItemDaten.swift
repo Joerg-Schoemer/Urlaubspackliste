@@ -31,7 +31,7 @@ struct ItemDaten {
         // Allgemein (für jede Reise)
         ("Ausweis", "Dokumente", [], [], [], false, 10),
         ("Krankenkassenkarte", "Dokumente", [], [], [], false, 20),
-        ("Impfpässe", "Dokumente", [], [], [], false, 20),
+        ("Impfpass", "Dokumente", [], [], [], false, 20),
         ("Vollmacht", "Dokumente", [], [], [], false, 10),
         ("Hosen", "Kleidung", [], [], [], false, 20),
         ("Kurze Hosen", "Kleidung", [], ["Sommer"], [], false, 20),
@@ -45,9 +45,9 @@ struct ItemDaten {
         ("Schuhe", "Kleidung", [], [], [], false, 50),
         ("Schlafanzug", "Kleidung", [], [], [], false, 70),
         ("Kosmetik", "Hygiene", [], [], [], false, 10),
-        ("Badeanzug/Badehose", "Kleidung", ["Strand"], [], [], false, 80),
+        ("Badeanzug/-hose", "Kleidung", ["Strand"], [], [], false, 80),
         ("Badelatschen", "Kleidung", ["Strand"], [], [], false, 50),
-        ("Strandponchos", "Kleidung", ["Strand"], [], [], false, 80),
+        ("Strandponcho", "Kleidung", ["Strand"], [], [], false, 80),
         ("Taucherbrille", "Sonstiges", ["Strand"], [], [], false, 40),
         ("Schlafsack", "Sonstiges", [], [], ["Camping"], false, 10),
         ("Kopfkissen", "Sonstiges", [], [], [], false, 10),
@@ -75,13 +75,14 @@ struct ItemDaten {
         ("Kamillosan", "Apotheke", [], [], [], true, 40),
 
         // Auto
-        ("Scheibenwaschzeug Sommer", "Auto", [], ["Sommer"], [], true, 10),
+        ("Scheibenwaschzeug Sommer", "Auto", [], ["Sommer", "Herbst", "Frühling"], [], true, 10),
+        ("Scheibenwaschzeug Winter", "Auto", [], ["Winter"], [], true, 10),
         ("Fahrzeugschein", "Dokumente", [], [], [], true, 30),
-        ("Führerscheine", "Dokumente", [], [], [], true, 30),
+        ("Führerschein", "Dokumente", [], [], [], false, 30),
         ("Reiseproviant", "Lebensmittel", [], [], [], true, 50),
 
         // Bootfahren
-        ("Schwimmwesten", "Sonstiges", ["Bootfahren"], [], [], false, 40),
+        ("Schwimmweste", "Sonstiges", ["Bootfahren"], [], [], false, 40),
         ("Kopfbedeckung", "Kleidung", ["Bootfahren"], [], [], false, 60),
         ("Cap-Catcher", "Sonstiges", ["Bootfahren"], [], [], false, 40),
         ("Neoprenschläppchen", "Kleidung", ["Bootfahren"], [], [], false, 50),
@@ -89,7 +90,7 @@ struct ItemDaten {
         ("SUP Finne", "Sonstiges", ["Bootfahren"], [], [], true, 40),
         ("SUP Leash", "Sonstiges", ["Bootfahren"], [], [], true, 40),
         ("Paddel", "Sonstiges", ["Bootfahren"], [], [], true, 40),
-        ("2,5mm Imbusschlüssel", "Sonstiges", ["Bootfahren"], [], [], true, 50),
+        ("Imbusschlüssel 2,5mm", "Sonstiges", ["Bootfahren"], [], [], true, 50),
         ("Schraubendreher", "Sonstiges", ["Bootfahren"], [], [], true, 50),
         ("Wasserdichte Handyhülle", "Technik", ["Bootfahren"], [], [], true, 40),
         ("Schlüsselanhänger Schwimmer", "Sonstiges", ["Bootfahren"], [], [], true, 40),
@@ -121,9 +122,9 @@ struct ItemDaten {
         ("Papier und Stifte", "Sonstiges", [], [], [], true, 90),
 
         // Lebensmittel
-        ("Gewürze (Salz, Pfeffer)", "Lebensmittel", [], [], ["Ferienwohnung"], true, 30),
-        ("Kaffee", "Lebensmittel", [], [], [], true, 10),
-        ("Kaffeefilter", "Lebensmittel", [], [], [], true, 10),
+        ("Gewürze (Salz, Pfeffer)", "Lebensmittel", [], [], ["Ferienwohnung", "Camping"], true, 30),
+        ("Kaffee", "Lebensmittel", [], [], ["Ferienwohnung", "Camping"], true, 10),
+        ("Kaffeefilter", "Lebensmittel", [], [], ["Ferienwohnung", "Camping"], true, 10),
         ("Back-Kakao", "Lebensmittel", [], [], [], true, 20),
         ("Erythrit", "Lebensmittel", [], [], [], true, 20),
         ("Limo Zero", "Lebensmittel", [], [], [], true, 40),

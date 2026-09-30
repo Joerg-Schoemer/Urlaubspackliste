@@ -25,6 +25,14 @@ struct PackingListeDetailView: View {
     @State private var syncPausiert = false
     @State private var zeigeFreigabeBeendet = false
     
+    /// Gilt für alle Listen - wer beim Packen nur noch das Offene sehen will,
+    /// will das in der Regel überall.
+    @AppStorage("packlisteAnzeigeModus") private var anzeigeModus: AnzeigeModus = .alle
+    
+    /// Zugeklappte Kategorien. Gemerkt werden die geschlossenen, damit neue
+    /// Kategorien von selbst offen erscheinen.
+    @State private var zugeklappteKategorien: Set<String> = []
+    
     private var listeSchluessel: String {
         "meinePerson_\(liste.titel)_\(liste.erstelltAm.timeIntervalSince1970)"
     }
@@ -70,8 +78,42 @@ struct PackingListeDetailView: View {
         }
     }
 
+    /// Artikel, die im gewählten Anzeigemodus in der Liste stehen.
+    ///
+    /// Gefiltert wird nach der aktiven Person: was sie schon gepackt hat, verschwindet
+    /// im Modus "Offen" - auch wenn ein Mitreisender es noch nicht abgehakt hat.
+    private var sichtbareItems: [PackingItem] {
+        switch anzeigeModus {
+        case .alle:
+            return sortierteItems
+        case .offen:
+            guard let meinePerson else { return sortierteItems }
+            return sortierteItems.filter { !$0.istAbgehakt(von: meinePerson) }
+        case .gemeinsam:
+            return basisItems
+        }
+    }
+    
+    /// Grundmenge für die Zähler in den Kategorie-Köpfen.
+    ///
+    /// Im Modus "Gemeinsam" zählen nur die gemeinsamen Artikel - sonst stünde
+    /// etwa "2/7" über einer Kategorie, die nur drei Zeilen zeigt.
+    private var basisItems: [PackingItem] {
+        anzeigeModus == .gemeinsam ? sortierteItems.filter { $0.istGruppenartikel } : sortierteItems
+    }
+
     private var gruppierteKategorien: [String] {
-        Array(Set(sortierteItems.map { $0.kategorie })).sorted()
+        Array(Set(sichtbareItems.map { $0.kategorie })).sorted()
+    }
+    
+    /// Im Modus "Offen" ist alles erledigt - die Kategorien wären sonst einfach weg.
+    private var allesGepackt: Bool {
+        anzeigeModus == .offen && sichtbareItems.isEmpty && !(liste.items ?? []).isEmpty
+    }
+    
+    /// Im Modus "Gemeinsam" hat die Liste keine gemeinsamen Artikel.
+    private var keineGemeinsamen: Bool {
+        anzeigeModus == .gemeinsam && sichtbareItems.isEmpty
     }
     
     /// Artikel, die jede Person für sich packt.
@@ -112,12 +154,52 @@ struct PackingListeDetailView: View {
     var body: some View {
         List {
             if let meinePerson {
+                if allesGepackt {
+                    ContentUnavailableView {
+                        Label("Alles gepackt", systemImage: "checkmark.circle")
+                    } description: {
+                        Text("Für \(meinePerson.name) ist nichts mehr offen.")
+                    } actions: {
+                        Button("Alle anzeigen") { anzeigeModus = .alle }
+                    }
+                }
+                
+                if keineGemeinsamen {
+                    ContentUnavailableView {
+                        Label("Nichts Gemeinsames", systemImage: "person.2.slash")
+                    } description: {
+                        Text("Diese Liste enthält keine Artikel, die einer für alle packt.")
+                    } actions: {
+                        Button("Alle anzeigen") { anzeigeModus = .alle }
+                    }
+                }
+                
                 ForEach(gruppierteKategorien, id: \.self) { kategorie in
-                    // Artikel ohne Kategorie bekommen eine eigene Überschrift,
-                    // sonst stünde ihre Section titellos in der Liste.
-                    Section(kategorie.isEmpty ? "Ohne Kategorie" : kategorie) {
-                        ForEach(sortierteItems.filter { $0.kategorie == kategorie }) { item in
-                            ItemZeile(item: item, person: meinePerson, liste: liste)
+                    let istOffen = !zugeklappteKategorien.contains(kategorie)
+                    let alleDerKategorie = basisItems.filter { $0.kategorie == kategorie }
+                    
+                    Section {
+                        if istOffen {
+                            ForEach(sichtbareItems.filter { $0.kategorie == kategorie }) { item in
+                                ItemZeile(item: item, person: meinePerson, liste: liste)
+                            }
+                        }
+                    } header: {
+                        // Artikel ohne Kategorie bekommen eine eigene Überschrift,
+                        // sonst stünde ihre Section titellos in der Liste.
+                        KategorieKopf(
+                            titel: kategorie.isEmpty ? "Ohne Kategorie" : kategorie,
+                            erledigt: alleDerKategorie.filter { $0.istAbgehakt(von: meinePerson) }.count,
+                            gesamt: alleDerKategorie.count,
+                            istOffen: istOffen
+                        ) {
+                            withAnimation {
+                                if istOffen {
+                                    zugeklappteKategorien.insert(kategorie)
+                                } else {
+                                    zugeklappteKategorien.remove(kategorie)
+                                }
+                            }
                         }
                     }
                 }
@@ -192,6 +274,34 @@ struct PackingListeDetailView: View {
                     Label("Bearbeiten", systemImage: "pencil")
                 }
                 .disabled(liste.istGeteilt)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Anzeige", selection: $anzeigeModus) {
+                        ForEach(AnzeigeModus.allCases) { modus in
+                            Label(modus.titel, systemImage: modus.symbol).tag(modus)
+                        }
+                    }
+                    Section {
+                        Button {
+                            withAnimation { zugeklappteKategorien.removeAll() }
+                        } label: {
+                            Label("Alle aufklappen", systemImage: "chevron.down")
+                        }
+                        .disabled(zugeklappteKategorien.isEmpty)
+                        Button {
+                            withAnimation { zugeklappteKategorien = Set(gruppierteKategorien) }
+                        } label: {
+                            Label("Alle zuklappen", systemImage: "chevron.right")
+                        }
+                        .disabled(Set(gruppierteKategorien).isSubset(of: zugeklappteKategorien))
+                    }
+                } label: {
+                    // Das gefüllte Symbol zeigt an, dass gerade gefiltert wird.
+                    Label("Anzeige", systemImage: anzeigeModus != .alle
+                          ? "line.3.horizontal.decrease.circle.fill"
+                          : "line.3.horizontal.decrease.circle")
+                }
             }
             if kannPersonWechseln {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -347,6 +457,69 @@ struct PackingListeDetailView: View {
     }
 }
 
+/// Welche Artikel die Packliste zeigt.
+///
+/// Der Rohwert landet in den UserDefaults - darum ein String und nicht die Position.
+enum AnzeigeModus: String, CaseIterable, Identifiable {
+    /// Alle Artikel, erledigte eingeschlossen.
+    case alle
+    /// Nur, was die aktive Person noch nicht gepackt hat.
+    case offen
+    /// Nur Artikel, die einer für alle packt - erledigte eingeschlossen.
+    case gemeinsam
+    
+    var id: Self { self }
+    
+    var titel: String {
+        switch self {
+        case .alle: "Alle anzeigen"
+        case .offen: "Nur Offene anzeigen"
+        case .gemeinsam: "Nur Gemeinsames anzeigen"
+        }
+    }
+    
+    var symbol: String {
+        switch self {
+        case .alle: "list.bullet"
+        case .offen: "circle"
+        case .gemeinsam: "person.2"
+        }
+    }
+}
+
+/// Überschrift einer Kategorie, die per Tipp auf- und zuklappt.
+///
+/// Der Zähler bleibt auch zugeklappt sichtbar - so sieht man, ob in einer
+/// geschlossenen Kategorie noch etwas offen ist.
+private struct KategorieKopf: View {
+    let titel: String
+    let erledigt: Int
+    let gesamt: Int
+    let istOffen: Bool
+    let umschalten: () -> Void
+    
+    var body: some View {
+        Button(action: umschalten) {
+            HStack {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .rotationEffect(.degrees(istOffen ? 90 : 0))
+                Text(titel)
+                Spacer()
+                Text("\(erledigt)/\(gesamt)")
+                    .monospacedDigit()
+                    .foregroundStyle(erledigt == gesamt ? .green : .secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(titel)
+        .accessibilityValue("\(erledigt) von \(gesamt) gepackt")
+        .accessibilityHint(istOffen ? "Zuklappen" : "Aufklappen")
+    }
+}
+
 /// Eine Zeile in der Mitreisenden-Übersicht mit Fortschritt und Aktiv-Markierung.
 private struct MitreisenderZeile: View {
     let person: Person
@@ -409,13 +582,6 @@ private struct ItemZeile: View {
                     Image(systemName: "person.2.fill")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                } else {
-                    if let anzahl = item.gepacktVon?.count, anzahl > 0 {
-                        Text("\(anzahl)")
-                            .font(.caption2)
-                            .padding(4)
-                            .background(Circle().fill(.green.opacity(0.2)))
-                    }
                 }
             }
         }
