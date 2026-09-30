@@ -296,6 +296,6 @@ private struct ItemZeile: View {
 
 #Preview {
     NavigationStack {
-        PackingListeDetailView(liste: PackingList(titel: "Test", aktivitaet: "Strand", unterkunftsart: "Hotel", jahreszeit: "Sommer"))
+        PackingListeDetailView(liste: PackingList(titel: "Test", aktivitaeten: ["Strand", "Wandern"], unterkunftsart: "Hotel", jahreszeit: "Sommer"))
     }
 }

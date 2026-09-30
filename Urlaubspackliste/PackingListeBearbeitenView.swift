@@ -18,7 +18,7 @@ struct PackingListeBearbeitenView: View {
     @State private var neuesItem: PackingItem?
 
     private var aktivitaeten: [String] {
-        Array(Set(vorlagen.flatMap { $0.aktivitaeten } + [liste.aktivitaet])).filter { !$0.isEmpty }.sorted()
+        Array(Set(vorlagen.flatMap { $0.aktivitaeten } + liste.aktivitaeten)).filter { !$0.isEmpty }.sorted()
     }
     private var unterkunftsarten: [String] {
         Array(Set(vorlagen.flatMap { $0.unterkunftsarten } + [liste.unterkunftsart])).filter { !$0.isEmpty }.sorted()
@@ -46,12 +46,12 @@ struct PackingListeBearbeitenView: View {
                     TextField("Titel", text: $liste.titel)
                 }
 
-                Section("Aktivität") {
-                    Picker("Aktivität", selection: $liste.aktivitaet) {
-                        Text("Keine Auswahl").tag("")
-                        ForEach(aktivitaeten, id: \.self) { Text($0).tag($0) }
-                    }
-                    .pickerStyle(.inline)
+                Section {
+                    AktivitaetenAuswahl(verfuegbare: aktivitaeten, ausgewaehlte: $liste.aktivitaeten)
+                } header: {
+                    Text("Aktivitäten")
+                } footer: {
+                    Text("Mehrfachauswahl möglich.")
                 }
 
                 Section("Unterkunftsart") {
@@ -173,6 +173,6 @@ private struct PackingItemBearbeitenView: View {
 }
 
 #Preview {
-    PackingListeBearbeitenView(liste: PackingList(titel: "Test", aktivitaet: "Strand", unterkunftsart: "Hotel", jahreszeit: "Sommer"))
+    PackingListeBearbeitenView(liste: PackingList(titel: "Test", aktivitaeten: ["Strand", "Wandern"], unterkunftsart: "Hotel", jahreszeit: "Sommer"))
         .modelContainer(for: PackingList.self, inMemory: true)
 }

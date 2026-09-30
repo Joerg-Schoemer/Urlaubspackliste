@@ -42,7 +42,7 @@ final class SharingManager {
         let recordID = CKRecord.ID(recordName: "List-\(liste.id.uuidString)", zoneID: zoneID)
         let listRecord = CKRecord(recordType: "PackingListRecord", recordID: recordID)
         listRecord["titel"] = liste.titel as CKRecordValue
-        listRecord["aktivitaet"] = liste.aktivitaet as CKRecordValue
+        listRecord["aktivitaeten"] = liste.aktivitaeten as CKRecordValue
         listRecord["unterkunftsart"] = liste.unterkunftsart as CKRecordValue
         listRecord["jahreszeit"] = liste.jahreszeit as CKRecordValue
         
@@ -278,7 +278,7 @@ extension SharingManager {
         
         let neueListe = PackingList(
             titel: listRecord["titel"] as? String ?? "Geteilte Liste",
-            aktivitaet: listRecord["aktivitaet"] as? String ?? "",
+            aktivitaeten: listRecord["aktivitaeten"] as? [String] ?? [],
             unterkunftsart: listRecord["unterkunftsart"] as? String ?? "",
             jahreszeit: listRecord["jahreszeit"] as? String ?? ""
         )

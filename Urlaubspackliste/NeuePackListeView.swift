@@ -27,7 +27,7 @@ struct NeuePackListeView: View {
     }
     
     @State private var titel = ""
-    @State private var ausgewaehlteAktivitaet = ""
+    @State private var ausgewaehlteAktivitaeten: [String] = []
     @State private var ausgewaehlteUnterkunft = ""
     @State private var ausgewaehlteJahreszeit = ""
     @State private var personen: [Person] = [Person(name: "")]
@@ -43,12 +43,12 @@ struct NeuePackListeView: View {
                     TextField("z. B. Toskana 2026", text: $titel)
                 }
                 
-                Section("Aktivität") {
-                    Picker("Aktivität", selection: $ausgewaehlteAktivitaet) {
-                        Text("Keine Angabe").tag("")
-                        ForEach(aktivitaeten, id: \.self) { Text($0).tag($0) }
-                    }
-                    .pickerStyle(.inline)
+                Section {
+                    AktivitaetenAuswahl(verfuegbare: aktivitaeten, ausgewaehlte: $ausgewaehlteAktivitaeten)
+                } header: {
+                    Text("Aktivitäten")
+                } footer: {
+                    Text("Mehrfachauswahl möglich. Ohne Auswahl werden nur allgemeine Artikel übernommen.")
                 }
 
                 Section("Unterkunftsart") {
@@ -104,14 +104,17 @@ struct NeuePackListeView: View {
     private func listeErstellen() {
         let neueListe = PackingList(
             titel: titel,
-            aktivitaet: ausgewaehlteAktivitaet,
+            aktivitaeten: ausgewaehlteAktivitaeten.sorted(),
             unterkunftsart: ausgewaehlteUnterkunft,
             jahreszeit: ausgewaehlteJahreszeit
         )
         neueListe.personen = personen.filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
         
         let passendeItems = ItemDaten.alle.filter { vorlage in
-            let aktivitaetPasst = vorlage.aktivitaeten.isEmpty || vorlage.aktivitaeten.contains(ausgewaehlteAktivitaet)
+            // Bei mehreren Aktivitäten genügt eine Überschneidung: wer wandert und campt,
+            // braucht die Artikel für beides.
+            let aktivitaetPasst = vorlage.aktivitaeten.isEmpty
+                || vorlage.aktivitaeten.contains { ausgewaehlteAktivitaeten.contains($0) }
             let jahreszeitPasst = vorlage.jahreszeiten.isEmpty || vorlage.jahreszeiten.contains(ausgewaehlteJahreszeit)
             let unterkunftPasst = vorlage.unterkunftsarten.isEmpty || vorlage.unterkunftsarten.contains(ausgewaehlteUnterkunft)
             return aktivitaetPasst && jahreszeitPasst && unterkunftPasst

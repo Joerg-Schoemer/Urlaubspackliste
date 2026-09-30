@@ -34,7 +34,9 @@ struct ContentView: View {
                                 VStack(alignment: .leading) {
                                     Text(liste.titel)
                                         .font(.headline)
-                                    Text("\(liste.aktivitaet) · \(liste.jahreszeit)")
+                                    Text([liste.aktivitaetenText, liste.jahreszeit]
+                                        .filter { !$0.isEmpty }
+                                        .joined(separator: " · "))
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                 }

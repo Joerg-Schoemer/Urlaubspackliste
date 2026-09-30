@@ -37,7 +37,7 @@ final class Person {
 final class PackingList {
     var id: UUID = UUID()
     var titel: String = ""
-    var aktivitaet: String = ""
+    var aktivitaeten: [String] = []     // mehrere Aktivitäten je Reise sind möglich
     var unterkunftsart: String = ""
     var jahreszeit: String = ""
     var erstelltAm: Date = Date()
@@ -56,13 +56,18 @@ final class PackingList {
     @Relationship(deleteRule: .cascade, inverse: \Person.packingList)
     var personen: [Person]? = []
     
-    init(titel: String = "", aktivitaet: String = "", unterkunftsart: String = "", jahreszeit: String = "") {
+    init(titel: String = "", aktivitaeten: [String] = [], unterkunftsart: String = "", jahreszeit: String = "") {
         self.titel = titel
-        self.aktivitaet = aktivitaet
+        self.aktivitaeten = aktivitaeten
         self.unterkunftsart = unterkunftsart
         self.jahreszeit = jahreszeit
         self.erstelltAm = Date()
         self.zoneName = "Liste-\(UUID().uuidString)"
+    }
+
+    /// Aktivitäten zur Anzeige, z. B. "Wandern · Camping".
+    var aktivitaetenText: String {
+        aktivitaeten.sorted().joined(separator: " · ")
     }
 }
 
