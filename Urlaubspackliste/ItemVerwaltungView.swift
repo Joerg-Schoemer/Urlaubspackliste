@@ -21,17 +21,32 @@ struct ItemVerwaltungView: View {
         NavigationStack {
             List {
                 ForEach(vorlagen) { vorlage in
+                    // buttonStyle(.plain): sonst färbt SwiftUI das gesamte Label
+                    // mit der Akzentfarbe ein und die Zeile wirkt wie ein Link.
                     Button {
                         neueVorlage = vorlage
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(vorlage.name)
-                                .foregroundStyle(.primary)
-                            Text(tagsText(vorlage))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(vorlage.name)
+                                    .foregroundStyle(.primary)
+                                Text(tagsText(vorlage))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            // Ein Gewicht von 0 ist der Normalfall und bleibt unerwähnt.
+                            if vorlage.gewicht != 0 {
+                                Text("\(vorlage.gewicht)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                 }
                 .onDelete { offsets in
                     for index in offsets { modelContext.delete(vorlagen[index]) }
@@ -109,6 +124,20 @@ private struct ItemVorlageBearbeitenView: View {
                     TextField("Name", text: $vorlage.name)
                     TextField("Kategorie", text: $vorlage.kategorie)
                     Toggle("Gruppenartikel (nur einmal für alle)", isOn: $vorlage.istGruppenartikel)
+                }
+                
+                Section {
+                    Stepper(value: $vorlage.gewicht, in: -99...99) {
+                        HStack {
+                            Text("Gewicht")
+                            Spacer()
+                            Text("\(vorlage.gewicht)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                } footer: {
+                    Text("Sortierung innerhalb der Kategorie: kleineres Gewicht steht weiter oben. Gleiches Gewicht hält ähnliche Artikel beieinander.")
                 }
                 
                 Section {

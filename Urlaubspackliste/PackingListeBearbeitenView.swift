@@ -31,8 +31,11 @@ struct PackingListeBearbeitenView: View {
         Array(Set((liste.items ?? []).map { $0.kategorie })).sorted()
     }
 
+    /// Innerhalb der Kategorie entscheidet das Gewicht, erst danach der Name.
     private func items(fuer kategorie: String) -> [PackingItem] {
-        (liste.items ?? []).filter { $0.kategorie == kategorie }.sorted { $0.name < $1.name }
+        (liste.items ?? []).filter { $0.kategorie == kategorie }.sorted {
+            $0.gewicht != $1.gewicht ? $0.gewicht < $1.gewicht : $0.name < $1.name
+        }
     }
 
     private var mindestensEinePersonAngegeben: Bool {
@@ -55,11 +58,14 @@ struct PackingListeBearbeitenView: View {
                 }
 
                 Section("Unterkunftsart") {
+                    // labelsHidden: der inline-Stil stellt den Picker-Titel sonst als
+                    // nicht auswählbare Zeile dar - die Section-Überschrift sagt es schon.
                     Picker("Unterkunftsart", selection: $liste.unterkunftsart) {
                         Text("Keine Auswahl").tag("")
                         ForEach(unterkunftsarten, id: \.self) { Text($0).tag($0) }
                     }
                     .pickerStyle(.inline)
+                    .labelsHidden()
                 }
 
                 Section("Jahreszeit") {
@@ -67,6 +73,7 @@ struct PackingListeBearbeitenView: View {
                         ForEach(jahreszeiten, id: \.self) { Text($0) }
                     }
                     .pickerStyle(.inline)
+                    .labelsHidden()
                 }
 
                 Section("Personen") {
@@ -150,6 +157,20 @@ private struct PackingItemBearbeitenView: View {
                     TextField("Name", text: $item.name)
                     TextField("Kategorie", text: $item.kategorie)
                     Toggle("Gruppenartikel (nur einmal für alle)", isOn: $item.istGruppenartikel)
+                }
+                
+                Section {
+                    Stepper(value: $item.gewicht, in: -99...99) {
+                        HStack {
+                            Text("Gewicht")
+                            Spacer()
+                            Text("\(item.gewicht)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                } footer: {
+                    Text("Sortierung innerhalb der Kategorie: kleineres Gewicht steht weiter oben.")
                 }
             }
             .navigationTitle(item.name.isEmpty ? "Neuer Artikel" : item.name)

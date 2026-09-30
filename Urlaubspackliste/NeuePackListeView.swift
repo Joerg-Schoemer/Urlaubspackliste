@@ -52,11 +52,14 @@ struct NeuePackListeView: View {
                 }
 
                 Section("Unterkunftsart") {
+                    // labelsHidden: der inline-Stil stellt den Picker-Titel sonst als
+                    // nicht auswählbare Zeile dar - die Section-Überschrift sagt es schon.
                     Picker("Unterkunftsart", selection: $ausgewaehlteUnterkunft) {
                         Text("Keine Angabe").tag("")
                         ForEach(unterkunftsarten, id: \.self) { Text($0).tag($0) }
                     }
                     .pickerStyle(.inline)
+                    .labelsHidden()
                 }
                 
                 Section("Jahreszeit") {
@@ -64,6 +67,7 @@ struct NeuePackListeView: View {
                         ForEach(jahreszeiten, id: \.self) { Text($0) }
                     }
                     .pickerStyle(.inline)
+                    .labelsHidden()
                 }
                 
                 Section("Personen") {
@@ -110,7 +114,9 @@ struct NeuePackListeView: View {
         )
         neueListe.personen = personen.filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
         
-        let passendeItems = ItemDaten.alle.filter { vorlage in
+        // Gefiltert wird über die gespeicherten Vorlagen, nicht über den festen
+        // Katalog in ItemDaten - sonst fehlen alle selbst angelegten Artikel.
+        let passendeItems = vorlagen.filter { vorlage in
             // Bei mehreren Aktivitäten genügt eine Überschneidung: wer wandert und campt,
             // braucht die Artikel für beides.
             let aktivitaetPasst = vorlage.aktivitaeten.isEmpty
@@ -121,7 +127,12 @@ struct NeuePackListeView: View {
         }
         
         neueListe.items = passendeItems.map { vorlage in
-            PackingItem(name: vorlage.name, kategorie: vorlage.kategorie, istGruppenartikel: vorlage.istGruppenartikel)
+            PackingItem(
+                name: vorlage.name,
+                kategorie: vorlage.kategorie,
+                istGruppenartikel: vorlage.istGruppenartikel,
+                gewicht: vorlage.gewicht
+            )
         }
         
         modelContext.insert(neueListe)

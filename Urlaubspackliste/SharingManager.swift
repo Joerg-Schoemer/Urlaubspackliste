@@ -120,6 +120,7 @@ extension SharingManager {
             record["kategorie"] = item.kategorie as CKRecordValue
             record["istGruppenartikel"] = item.istGruppenartikel as CKRecordValue
             record["gruppeAbgehakt"] = item.gruppeAbgehakt as CKRecordValue
+            record["gewicht"] = item.gewicht as CKRecordValue
             record["listRef"] = parentRef as CKRecordValue
 
             let gepacktVonIDs = (item.gepacktVon ?? []).map { $0.id.uuidString }
@@ -317,7 +318,8 @@ extension SharingManager {
             let item = PackingItem(
                 name: record["name"] as? String ?? "",
                 kategorie: record["kategorie"] as? String ?? "",
-                istGruppenartikel: record["istGruppenartikel"] as? Bool ?? false
+                istGruppenartikel: record["istGruppenartikel"] as? Bool ?? false,
+                gewicht: record["gewicht"] as? Int ?? 0
             )
             item.id = uuid   // <- die fehlende Zeile
             item.gruppeAbgehakt = record["gruppeAbgehakt"] as? Bool ?? false

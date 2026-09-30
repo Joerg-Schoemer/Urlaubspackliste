@@ -79,15 +79,17 @@ final class PackingItem {
     var kategorie: String = ""
     var istGruppenartikel: Bool = false
     var gruppeAbgehakt: Bool = false   // nur relevant, wenn istGruppenartikel == true
+    var gewicht: Int = 0               // Sortierung innerhalb der Kategorie, kleiner zuerst
     var packingList: PackingList?
     
     @Relationship(inverse: \Person.gepackteItems)
     var gepacktVon: [Person]? = []
     
-    init(name: String = "", kategorie: String = "", istGruppenartikel: Bool = false) {
+    init(name: String = "", kategorie: String = "", istGruppenartikel: Bool = false, gewicht: Int = 0) {
         self.name = name
         self.kategorie = kategorie
         self.istGruppenartikel = istGruppenartikel
+        self.gewicht = gewicht
     }
     
     func istAbgehakt(von person: Person) -> Bool {
@@ -119,12 +121,20 @@ final class ItemTemplate {
     var jahreszeiten: [String] = []
     var unterkunftsarten: [String] = []
     
-    init(name: String = "", kategorie: String = "", istGruppenartikel: Bool = false, aktivitaeten: [String] = [], jahreszeiten: [String] = [], unterkunftsarten: [String] = []) {
+    /// Sortierung innerhalb der Kategorie: kleineres Gewicht steht weiter oben.
+    ///
+    /// Artikel mit gleichem Gewicht stehen beieinander und werden untereinander
+    /// nach Namen sortiert. So lassen sich zusammengehörige Dinge gruppieren,
+    /// ohne dafür eine eigene Kategorie anlegen zu müssen.
+    var gewicht: Int = 0
+    
+    init(name: String = "", kategorie: String = "", istGruppenartikel: Bool = false, aktivitaeten: [String] = [], jahreszeiten: [String] = [], unterkunftsarten: [String] = [], gewicht: Int = 0) {
         self.name = name
         self.kategorie = kategorie
         self.istGruppenartikel = istGruppenartikel
         self.aktivitaeten = aktivitaeten
         self.jahreszeiten = jahreszeiten
         self.unterkunftsarten = unterkunftsarten
+        self.gewicht = gewicht
     }
 }
