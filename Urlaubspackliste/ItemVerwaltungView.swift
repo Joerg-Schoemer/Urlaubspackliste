@@ -26,22 +26,12 @@ struct ItemVerwaltungView: View {
                     Button {
                         neueVorlage = vorlage
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(vorlage.name)
-                                    .foregroundStyle(.primary)
-                                Text(tagsText(vorlage))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            // Ein Gewicht von 0 ist der Normalfall und bleibt unerwähnt.
-                            if vorlage.gewicht != 0 {
-                                Text("\(vorlage.gewicht)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                            }
+                        VStack(alignment: .leading) {
+                            Text(vorlage.name)
+                                .foregroundStyle(.primary)
+                            Text(tagsText(vorlage))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(.rect)
