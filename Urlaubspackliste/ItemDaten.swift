@@ -27,7 +27,15 @@ struct ItemDaten {
     /// Dokumente:    10 Person · 20 Gesundheit · 30 Fahrzeug
     /// Lebensmittel: 10 Kaffee · 20 Backen und Süßen · 30 Würzen · 40 Getränke · 50 Unterwegs
     /// Auto:         10 Fahrzeug · 20 Dachlast · 30 Zurren
-    static let alle: [(name: String, kategorie: String, aktivitaeten: [String], jahreszeiten: [String], unterkunftsarten: [String], istGruppenartikel: Bool, gewicht: Int)] = [
+    static let alle: [(
+        name: String,
+        kategorie: String,
+        aktivitaeten: [String],
+        jahreszeiten: [String],
+        unterkunftsarten: [String],
+        istGruppenartikel: Bool,
+        gewicht: Int
+    )] = [
         // Allgemein (für jede Reise)
         ("Ausweis", "Dokumente", [], [], [], false, 10),
         ("Krankenkassenkarte", "Dokumente", [], [], [], false, 20),
@@ -164,7 +172,36 @@ struct ItemDaten {
         ("Fahrradhelm", "Sonstiges", ["Fahrradfahren"], [], [], false, 70),
         ("Fahrradträger", "Auto", ["Fahrradfahren"], [], [], true, 20),
 
-    ]
+        // Diabetes
+        ("Insulin", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Tagebuch", "Diabetes", ["Diabetes"], [], [], true, 40),
+        ("Pflasterlöser", "Diabetes", ["Diabetes"], [], [], true, 40),
+        ("APP-Salbe", "Diabetes", ["Diabetes"], [], [], true, 40),
+        ("Diabetes-Handy", "Diabetes", ["Diabetes"], [], [], true, 10),
+        ("Diabetes-Watch", "Diabetes", ["Diabetes"], [], [], true, 10),
+        ("Ladekabel Watch", "Diabetes", ["Diabetes"], [], [], true, 20),
+        ("Ladekabel Handy", "Diabetes", ["Diabetes"], [], [], true, 20),
+        ("Ersatzpods", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Dexcom Ersatzsensoren", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Nadeldose", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("edding", "Diabetes", ["Diabetes"], [], [], true, 40),
+        ("Bauchgürtel", "Diabetes", ["Diabetes"], [], [], true, 40),
+        ("baqsimi", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Bauchtasche", "Diabetes", ["Diabetes"], [], [], true, 40),
+        ("PEN", "Diabetes", ["Diabetes"], [], [], true, 10),
+        ("Blutzuckermessgerät", "Diabetes", ["Diabetes"], [], [], true, 10),
+        ("Blutzuckerteststreifen", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Ketonteststreifen", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Stechhilfe", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Lanzetten", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Alkoholtücher", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Zucker", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("lange KH", "Diabetes", ["Diabetes"], [], [], true, 30),
+        ("Star-Wars-Tasche", "Diabetes", ["Diabetes"], [], [], true, 40),
+        ("Ladekabel PDM", "Diabetes", ["Diabetes"], [], [], true, 20),
+        ("Ersatz-PDM", "Diabetes", ["Diabetes"], [], [], true, 20),
+        ("DIA-Powerbank", "Diabetes", ["Diabetes"], [], [], true, 20),
+        ("Fixomull Pflaster", "Diabetes", ["Diabetes"], [], [], true, 30)]
     
     @MainActor
     static func seedFallsLeer(context: ModelContext) {
