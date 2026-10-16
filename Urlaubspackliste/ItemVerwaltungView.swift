@@ -12,34 +12,56 @@ import SwiftData
 struct ItemVerwaltungView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \ItemTemplate.name) private var vorlagen: [ItemTemplate]
+    @Query private var vorlagen: [ItemTemplate]
     
     @State private var neueVorlage: ItemTemplate?
     @State private var zeigeAllesLoeschenBestaetigung = false
 
+    /// Sortierung wie in der Packliste: Kategorie, darin das Gewicht, zuletzt der Name.
+    /// Das Gewicht hält ähnliche Artikel innerhalb einer Kategorie beieinander.
+    private var sortierteVorlagen: [ItemTemplate] {
+        vorlagen.sorted {
+            if $0.kategorie != $1.kategorie { return $0.kategorie < $1.kategorie }
+            if $0.gewicht != $1.gewicht { return $0.gewicht < $1.gewicht }
+            return $0.name < $1.name
+        }
+    }
+
+    /// Kategorien alphabetisch sortiert - wie die Kategorie-Sections in der Packliste.
+    private var gruppierteKategorien: [String] {
+        Array(Set(vorlagen.map { $0.kategorie })).sorted()
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                ForEach(vorlagen) { vorlage in
-                    // buttonStyle(.plain): sonst färbt SwiftUI das gesamte Label
-                    // mit der Akzentfarbe ein und die Zeile wirkt wie ein Link.
-                    Button {
-                        neueVorlage = vorlage
-                    } label: {
-                        VStack(alignment: .leading) {
-                            Text(vorlage.name)
-                                .foregroundStyle(.primary)
-                            Text(tagsText(vorlage))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                ForEach(gruppierteKategorien, id: \.self) { kategorie in
+                    let vorlagenDerKategorie = sortierteVorlagen.filter { $0.kategorie == kategorie }
+                    Section {
+                        ForEach(vorlagenDerKategorie) { vorlage in
+                            // buttonStyle(.plain): sonst färbt SwiftUI das gesamte Label
+                            // mit der Akzentfarbe ein und die Zeile wirkt wie ein Link.
+                            Button {
+                                neueVorlage = vorlage
+                            } label: {
+                                VStack(alignment: .leading) {
+                                    Text(vorlage.name)
+                                        .foregroundStyle(.primary)
+                                    Text(tagsText(vorlage))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(.rect)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(.rect)
+                        .onDelete { offsets in
+                            for index in offsets { modelContext.delete(vorlagenDerKategorie[index]) }
+                        }
+                    } header: {
+                        Text(kategorie.isEmpty ? "Ohne Kategorie" : kategorie)
                     }
-                    .buttonStyle(.plain)
-                }
-                .onDelete { offsets in
-                    for index in offsets { modelContext.delete(vorlagen[index]) }
                 }
             }
             .navigationTitle("Artikel-Vorlagen")
