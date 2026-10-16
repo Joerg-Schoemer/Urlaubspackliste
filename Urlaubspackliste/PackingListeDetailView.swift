@@ -19,6 +19,7 @@ struct PackingListeDetailView: View {
     @State private var zeigePersonAuswahl = false
     @State private var sharePaket: SharePaket?
     @State private var teilenLaeuft = false
+    @State private var einladePerson: Person?
     @State private var fehlerText: String?
     @State private var zeigeBearbeiten = false
     @State private var zeigeZuordnung = false
@@ -203,6 +204,12 @@ struct PackingListeDetailView: View {
                         }
                     }
                 }
+            } else if liste.istGeteilt && !zeigeFreigabeBeendet {
+                ContentUnavailableView {
+                    Label("Warten auf Zuordnung", systemImage: "person.badge.clock")
+                } description: {
+                    Text("Die Person, die diese Liste erstellt hat, muss dich noch einem Mitreisenden zuordnen, bevor du packen kannst. Das geschieht automatisch, sobald die Zuordnung da ist.")
+                }
             }
             
             if !gemeinsameItems.isEmpty {
@@ -233,7 +240,11 @@ struct PackingListeDetailView: View {
                                 person: person,
                                 istAktiv: person.id == meinePerson?.id,
                                 markierung: aktivMarkierung,
-                                fortschritt: fortschritt(fuer: person)
+                                fortschritt: fortschritt(fuer: person),
+                                kannEinladen: liste.istBesitzer && !person.istZugeordnet && person.id != meinePerson?.id,
+                                einladenGesperrt: teilenLaeuft,
+                                zeigtSpinner: einladePerson?.id == person.id,
+                                onEinladen: { einladen(person) }
                             )
                         }
                         .buttonStyle(.plain)
@@ -316,21 +327,8 @@ struct PackingListeDetailView: View {
                     }
                 }
             }
-            // Teilen und Zuordnen kann nur der Besitzer: die CloudKit-Zone gehört ihm.
-            if liste.istBesitzer {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        teilen()
-                    } label: {
-                        if teilenLaeuft {
-                            ProgressView()
-                        } else {
-                            Label("Teilen", systemImage: "person.badge.plus")
-                        }
-                    }
-                    .disabled(teilenLaeuft)
-                }
-            }
+            // Zuordnen kann nur der Besitzer: die CloudKit-Zone gehört ihm. Einladen
+            // geschieht jetzt pro Person direkt in der Mitreisenden-Sektion.
             if liste.istGeteilt && liste.istBesitzer {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -350,10 +348,7 @@ struct PackingListeDetailView: View {
             }
         }
         .sheet(item: $sharePaket, onDismiss: {
-            // Direkt nach dem Einladen die Zuordnung zu den Mitreisenden anbieten.
-            if liste.istGeteilt && liste.istBesitzer {
-                zeigeZuordnung = true
-            }
+            Task { await nachEinladungZuordnen() }
         }) { paket in
             CloudSharingView(share: paket.share, container: paket.container)
         }
@@ -400,17 +395,63 @@ struct PackingListeDetailView: View {
         }
     }
     
-    private func teilen() {
+    /// Öffnet den Teilen-Dialog für genau die übergebene Person.
+    ///
+    /// Welche Apple-ID dabei ausgewählt wird, entscheidet erst der native Dialog - danach
+    /// erkennt nachEinladungZuordnen() den neuen Teilnehmer und ordnet ihn automatisch zu.
+    private func einladen(_ person: Person) {
+        einladePerson = person
         teilenLaeuft = true
         Task {
             do {
                 let (share, container) = try await SharingManager.shared.fetchOrCreateShare(for: liste)
+                // Der Besitzer selbst braucht keine Einladung - sobald die Liste geteilt ist,
+                // trägt er sich automatisch als Teilnehmer für seine eigene, schon gewählte Person ein.
+                if let meinePerson, meinePerson.teilnehmerID.isEmpty,
+                   let eigener = await SharingManager.shared.eigenerTeilnehmer(in: liste) {
+                    meinePerson.teilnehmerID = eigener.id
+                    meinePerson.teilnehmerUserRecordName = eigener.userRecordName
+                    meinePerson.teilnehmerKennung = eigener.kennung
+                    try? await SharingManager.shared.personZuordnungSpeichern(meinePerson, in: liste)
+                }
                 sharePaket = SharePaket(share: share, container: container)
                 await SharingManager.shared.pruefeHochgeladeneRecords(for: liste)
             } catch {
                 fehlerText = error.localizedDescription
+                einladePerson = nil
             }
             teilenLaeuft = false
+        }
+    }
+
+    /// Ordnet nach dem Schließen des Teilen-Dialogs den neu hinzugekommenen Teilnehmer
+    /// automatisch der Person zu, für die die Einladung gedacht war.
+    ///
+    /// Mehrdeutige Fälle (kein oder mehrere neue Teilnehmer auf einmal, z. B. wenn der
+    /// native Dialog mehrere Empfänger gleichzeitig zulässt) werden nicht automatisch
+    /// aufgelöst - dafür bleibt die manuelle Zuordnung.
+    private func nachEinladungZuordnen() async {
+        defer { einladePerson = nil }
+        guard liste.istGeteilt, let zielPerson = einladePerson else { return }
+
+        do {
+            let teilnehmer = try await SharingManager.shared.teilnehmer(fuer: liste)
+            let bekannteIDs = Set((liste.personen ?? []).compactMap { $0.teilnehmerID.isEmpty ? nil : $0.teilnehmerID })
+            let neue = teilnehmer.filter { !$0.istBesitzer && !bekannteIDs.contains($0.id) }
+
+            guard let neuer = neue.first, neue.count == 1 else {
+                if neue.count > 1 { zeigeZuordnung = true }
+                return
+            }
+
+            zielPerson.teilnehmerID = neuer.id
+            zielPerson.teilnehmerUserRecordName = neuer.userRecordName
+            zielPerson.teilnehmerKennung = neuer.kennung
+
+            try await SharingManager.shared.personZuordnungSpeichern(zielPerson, in: liste)
+            try modelContext.save()
+        } catch {
+            fehlerText = error.localizedDescription
         }
     }
     
@@ -436,7 +477,8 @@ struct PackingListeDetailView: View {
     }
 
     private func personLaden() async {
-        // Bei geteilten Listen zählt die Zuordnung der Apple-ID zum Mitreisenden.
+        // Bei geteilten Listen entscheidet allein die Zuordnung des Erstellers - ohne sie
+        // bleibt meinePerson nil. Die freie Auswahl unten ist nur für ungeteilte Listen gedacht.
         if liste.istGeteilt {
             await freigabePruefen()
             if zeigeFreigabeBeendet { return }
@@ -444,8 +486,8 @@ struct PackingListeDetailView: View {
             if let zugeordnet = await SharingManager.shared.eigenePerson(in: liste) {
                 meinePerson = zugeordnet
                 UserDefaults.standard.set(zugeordnet.name, forKey: listeSchluessel)
-                return
             }
+            return
         }
 
         if let gespeicherterName = UserDefaults.standard.string(forKey: listeSchluessel),
@@ -526,6 +568,10 @@ private struct MitreisenderZeile: View {
     let istAktiv: Bool
     let markierung: String
     let fortschritt: Double
+    let kannEinladen: Bool
+    let einladenGesperrt: Bool
+    let zeigtSpinner: Bool
+    let onEinladen: () -> Void
     
     var body: some View {
         HStack {
@@ -539,7 +585,19 @@ private struct MitreisenderZeile: View {
                     .padding(.vertical, 2)
                     .background(Capsule().fill(.blue))
             }
-            if person.istZugeordnet {
+            if kannEinladen {
+                Button(action: onEinladen) {
+                    if zeigtSpinner {
+                        ProgressView()
+                    } else {
+                        Label("Einladen", systemImage: "person.badge.plus")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(einladenGesperrt)
+            } else if person.istZugeordnet {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.caption)
                     .foregroundStyle(.secondary)
