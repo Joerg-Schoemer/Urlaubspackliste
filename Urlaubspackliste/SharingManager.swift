@@ -101,6 +101,29 @@ final class SharingManager {
             throw einzelFehler
         }
     }
+
+    /// Holt alle Treffer einer Query, auch wenn CloudKit sie über mehrere Seiten verteilt.
+    ///
+    /// records(matching:) liefert pro Aufruf nur eine von CloudKit bestimmte Teilmenge
+    /// zurück und einen Cursor für den Rest. Ohne diese Schleife fehlen zufällig verteilte
+    /// Items und Personen, sobald eine Zone mehr Records enthält, als in eine Seite passen.
+    private func alleTreffer(
+        fuer query: CKQuery,
+        in datenbank: CKDatabase,
+        zoneID: CKRecordZone.ID
+    ) async throws -> [(CKRecord.ID, Result<CKRecord, Error>)] {
+        var treffer: [(CKRecord.ID, Result<CKRecord, Error>)] = []
+
+        var (seite, cursor) = try await datenbank.records(matching: query, inZoneWith: zoneID)
+        treffer.append(contentsOf: seite)
+
+        while let aktuellerCursor = cursor {
+            (seite, cursor) = try await datenbank.records(continuingMatchFrom: aktuellerCursor)
+            treffer.append(contentsOf: seite)
+        }
+
+        return treffer
+    }
 }
 
 extension SharingManager {
@@ -267,13 +290,13 @@ extension SharingManager {
             recordType: "PackingItemRecord",
             predicate: NSPredicate(format: "listRef == %@", CKRecord.Reference(recordID: rootID, action: .none))
         )
-        let (itemErgebnisse, _) = try await datenbank.records(matching: itemQuery, inZoneWith: rootID.zoneID)
-        
+        let itemErgebnisse = try await alleTreffer(fuer: itemQuery, in: datenbank, zoneID: rootID.zoneID)
+
         let personQuery = CKQuery(
             recordType: "PersonRecord",
             predicate: NSPredicate(format: "listRef == %@", CKRecord.Reference(recordID: rootID, action: .none))
         )
-        let (personErgebnisse, _) = try await datenbank.records(matching: personQuery, inZoneWith: rootID.zoneID)
+        let personErgebnisse = try await alleTreffer(fuer: personQuery, in: datenbank, zoneID: rootID.zoneID)
         
         let listenUUID = UUID(uuidString: String(rootID.recordName.dropFirst("List-".count))) ?? UUID()
         
@@ -405,7 +428,7 @@ extension SharingManager {
         let parentRef = CKRecord.Reference(recordID: listRecordID, action: .none)
         
         let itemQuery = CKQuery(recordType: "PackingItemRecord", predicate: NSPredicate(format: "listRef == %@", parentRef))
-        let (itemErgebnisse, _) = try await datenbank.records(matching: itemQuery, inZoneWith: zoneID)
+        let itemErgebnisse = try await alleTreffer(fuer: itemQuery, in: datenbank, zoneID: zoneID)
         
         var itemsNachID: [UUID: PackingItem] = [:]
         for item in liste.items ?? [] {
@@ -416,14 +439,37 @@ extension SharingManager {
             personenNachID[person.id] = person
         }
         
+        // Neu angelegte Items von anderen Geräten fehlen hier lokal noch - ebenso Items,
+        // die durch den früheren Pagination-Fehler nie übernommen wurden. Beide Fälle
+        // werden gleich behandelt: aus dem CloudKit-Record wird das lokale Item nachgebaut.
+        var neueItems: [PackingItem] = []
+
         for (recordID, ergebnis) in itemErgebnisse {
             guard let record = try? ergebnis.get() else { continue }
             guard let uuid = UUID(uuidString: String(recordID.recordName.dropFirst("Item-".count))) else { continue }
-            guard let lokalesItem = itemsNachID[uuid] else { continue }
-            
-            lokalesItem.gruppeAbgehakt = record["gruppeAbgehakt"] as? Bool ?? false
+
             let gepacktVonIDs = (record["gepacktVonIDs"] as? [String] ?? []).compactMap { UUID(uuidString: $0) }
-            lokalesItem.gepacktVon = gepacktVonIDs.compactMap { personenNachID[$0] }
+
+            if let lokalesItem = itemsNachID[uuid] {
+                lokalesItem.gruppeAbgehakt = record["gruppeAbgehakt"] as? Bool ?? false
+                lokalesItem.gepacktVon = gepacktVonIDs.compactMap { personenNachID[$0] }
+            } else {
+                let neuesItem = PackingItem(
+                    name: record["name"] as? String ?? "",
+                    kategorie: record["kategorie"] as? String ?? "",
+                    istGruppenartikel: record["istGruppenartikel"] as? Bool ?? false,
+                    gewicht: record["gewicht"] as? Int ?? 0
+                )
+                neuesItem.id = uuid
+                neuesItem.gruppeAbgehakt = record["gruppeAbgehakt"] as? Bool ?? false
+                neuesItem.gepacktVon = gepacktVonIDs.compactMap { personenNachID[$0] }
+                neueItems.append(neuesItem)
+            }
+        }
+
+        if !neueItems.isEmpty {
+            print("Fehlende Items nachgeladen: \(neueItems.count)")
+            liste.items = (liste.items ?? []) + neueItems
         }
 
         print("Gefundene Item-Records: \(itemErgebnisse.count)")

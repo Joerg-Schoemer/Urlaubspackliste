@@ -27,8 +27,12 @@ struct PackingListeDetailView: View {
     @State private var zeigeFreigabeBeendet = false
     
     /// Gilt für alle Listen - wer beim Packen nur noch das Offene sehen will,
-    /// will das in der Regel überall.
-    @AppStorage("packlisteAnzeigeModus") private var anzeigeModus: AnzeigeModus = .alle
+    /// will das in der Regel überall. "Gemeinsam" und "Persönlich" schließen
+    /// einander aus, ebenso "Offen" und "Fertig".
+    @AppStorage("packlisteNurOffene") private var nurOffene = false
+    @AppStorage("packlisteNurFertige") private var nurFertige = false
+    @AppStorage("packlisteNurGemeinsames") private var nurGemeinsames = false
+    @AppStorage("packlisteNurPersoenliche") private var nurPersoenliche = false
     
     /// Zugeklappte Kategorien. Gemerkt werden die geschlossenen, damit neue
     /// Kategorien von selbst offen erscheinen.
@@ -79,42 +83,114 @@ struct PackingListeDetailView: View {
         }
     }
 
+    /// Bindings für die Erledigt-Filter, die einander ausschließen.
+    ///
+    /// "Nur Offene" und "Nur Fertige" können nie gleichzeitig aktiv sein - das
+    /// Einschalten des einen deaktiviert das andere.
+    private var offeneBinding: Binding<Bool> {
+        Binding(
+            get: { nurOffene },
+            set: { ein in
+                nurOffene = ein
+                if ein { nurFertige = false }
+            }
+        )
+    }
+
+    private var fertigeBinding: Binding<Bool> {
+        Binding(
+            get: { nurFertige },
+            set: { ein in
+                nurFertige = ein
+                if ein { nurOffene = false }
+            }
+        )
+    }
+
+    /// Bindings für die Gemeinsam-Filter, die einander ausschließen.
+    ///
+    /// "Nur Gemeinsames" und "Nur Persönliche" können nie gleichzeitig
+    /// aktiv sein - das Einschalten des einen deaktiviert das andere.
+    private var gemeinsamesBinding: Binding<Bool> {
+        Binding(
+            get: { nurGemeinsames },
+            set: { ein in
+                nurGemeinsames = ein
+                if ein { nurPersoenliche = false }
+            }
+        )
+    }
+
+    private var persoenlicheBinding: Binding<Bool> {
+        Binding(
+            get: { nurPersoenliche },
+            set: { ein in
+                nurPersoenliche = ein
+                if ein { nurGemeinsames = false }
+            }
+        )
+    }
+
     /// Artikel, die im gewählten Anzeigemodus in der Liste stehen.
     ///
-    /// Gefiltert wird nach der aktiven Person: was sie schon gepackt hat, verschwindet
-    /// im Modus "Offen" - auch wenn ein Mitreisender es noch nicht abgehakt hat.
+    /// Gefiltert wird nach der aktiven Person: "Nur Offene" verbirgt, was sie schon
+    /// gepackt hat - auch wenn ein Mitreisender es noch nicht abgehakt hat. "Nur Fertige"
+    /// zeigt nur, was sie bereits gepackt hat. "Nur Gemeinsames" blendet alles aus, das
+    /// nicht einer für alle packt, "Nur Persönliche" genau das Gegenteil. Die jeweils
+    /// zusammengehörigen Filter ("Offen"/"Fertig", "Gemeinsam"/"Persönlich") schließen
+    /// einander aus.
     private var sichtbareItems: [PackingItem] {
-        switch anzeigeModus {
-        case .alle:
-            return sortierteItems
-        case .offen:
-            guard let meinePerson else { return sortierteItems }
-            return sortierteItems.filter { !$0.istAbgehakt(von: meinePerson) }
-        case .gemeinsam:
-            return basisItems
+        var ergebnis = sortierteItems
+        if nurGemeinsames {
+            ergebnis = ergebnis.filter { $0.istGruppenartikel }
+        } else if nurPersoenliche {
+            ergebnis = ergebnis.filter { !$0.istGruppenartikel }
         }
+        if let meinePerson {
+            if nurOffene {
+                ergebnis = ergebnis.filter { !$0.istAbgehakt(von: meinePerson) }
+            } else if nurFertige {
+                ergebnis = ergebnis.filter { $0.istAbgehakt(von: meinePerson) }
+            }
+        }
+        return ergebnis
     }
     
     /// Grundmenge für die Zähler in den Kategorie-Köpfen.
     ///
-    /// Im Modus "Gemeinsam" zählen nur die gemeinsamen Artikel - sonst stünde
+    /// Die Gemeinsam-Filter grenzen die Zählung ein - sonst stünde
     /// etwa "2/7" über einer Kategorie, die nur drei Zeilen zeigt.
     private var basisItems: [PackingItem] {
-        anzeigeModus == .gemeinsam ? sortierteItems.filter { $0.istGruppenartikel } : sortierteItems
+        if nurGemeinsames {
+            return sortierteItems.filter { $0.istGruppenartikel }
+        } else if nurPersoenliche {
+            return sortierteItems.filter { !$0.istGruppenartikel }
+        }
+        return sortierteItems
     }
 
     private var gruppierteKategorien: [String] {
         Array(Set(sichtbareItems.map { $0.kategorie })).sorted()
     }
     
-    /// Im Modus "Offen" ist alles erledigt - die Kategorien wären sonst einfach weg.
+    /// Bei aktivem Filter "Offen" ist alles erledigt - die Kategorien wären sonst einfach weg.
     private var allesGepackt: Bool {
-        anzeigeModus == .offen && sichtbareItems.isEmpty && !(liste.items ?? []).isEmpty
+        nurOffene && sichtbareItems.isEmpty && !(liste.items ?? []).isEmpty
     }
     
-    /// Im Modus "Gemeinsam" hat die Liste keine gemeinsamen Artikel.
+    /// Bei aktivem Filter "Gemeinsam" hat die Liste keine gemeinsamen Artikel.
     private var keineGemeinsamen: Bool {
-        anzeigeModus == .gemeinsam && sichtbareItems.isEmpty
+        nurGemeinsames && sichtbareItems.isEmpty
+    }
+
+    /// Bei aktivem Filter "Persönlich" hat die Liste keine persönlichen Artikel.
+    private var keinePersoenlichen: Bool {
+        nurPersoenliche && sichtbareItems.isEmpty
+    }
+
+    /// Bei aktivem Filter "Fertig" hat die aktive Person noch nichts gepackt.
+    private var keineFertigen: Bool {
+        nurFertige && sichtbareItems.isEmpty
     }
     
     /// Artikel, die jede Person für sich packt.
@@ -161,7 +237,7 @@ struct PackingListeDetailView: View {
                     } description: {
                         Text("Für \(meinePerson.name) ist nichts mehr offen.")
                     } actions: {
-                        Button("Alle anzeigen") { anzeigeModus = .alle }
+                        Button("Alle anzeigen") { nurOffene = false }
                     }
                 }
                 
@@ -171,7 +247,27 @@ struct PackingListeDetailView: View {
                     } description: {
                         Text("Diese Liste enthält keine Artikel, die einer für alle packt.")
                     } actions: {
-                        Button("Alle anzeigen") { anzeigeModus = .alle }
+                        Button("Alle anzeigen") { nurGemeinsames = false }
+                    }
+                }
+                
+                if keinePersoenlichen {
+                    ContentUnavailableView {
+                        Label("Nichts Persönliches", systemImage: "person.slash")
+                    } description: {
+                        Text("Diese Liste enthält keine Artikel, die jede Person für sich packt.")
+                    } actions: {
+                        Button("Alle anzeigen") { nurPersoenliche = false }
+                    }
+                }
+                
+                if keineFertigen {
+                    ContentUnavailableView {
+                        Label("Noch nichts Fertiges", systemImage: "circle")
+                    } description: {
+                        Text("Für \(meinePerson.name) ist noch nichts gepackt.")
+                    } actions: {
+                        Button("Alle anzeigen") { nurFertige = false }
                     }
                 }
                 
@@ -288,11 +384,10 @@ struct PackingListeDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("Anzeige", selection: $anzeigeModus) {
-                        ForEach(AnzeigeModus.allCases) { modus in
-                            Label(modus.titel, systemImage: modus.symbol).tag(modus)
-                        }
-                    }
+                    Toggle("Nur Offene anzeigen", isOn: offeneBinding)
+                    Toggle("Nur Fertige anzeigen", isOn: fertigeBinding)
+                    Toggle("Nur Gemeinsames anzeigen", isOn: gemeinsamesBinding)
+                    Toggle("Nur Persönliche anzeigen", isOn: persoenlicheBinding)
                     Section {
                         Button {
                             withAnimation { zugeklappteKategorien.removeAll() }
@@ -309,7 +404,7 @@ struct PackingListeDetailView: View {
                     }
                 } label: {
                     // Das gefüllte Symbol zeigt an, dass gerade gefiltert wird.
-                    Label("Anzeige", systemImage: anzeigeModus != .alle
+                    Label("Anzeige", systemImage: nurOffene || nurFertige || nurGemeinsames || nurPersoenliche
                           ? "line.3.horizontal.decrease.circle.fill"
                           : "line.3.horizontal.decrease.circle")
                 }
@@ -482,6 +577,9 @@ struct PackingListeDetailView: View {
         if liste.istGeteilt {
             await freigabePruefen()
             if zeigeFreigabeBeendet { return }
+            // Fehlende Items nachladen (z. B. von anderen Geräten hinzugefügt, oder durch
+            // den früheren Pagination-Fehler nie lokal angekommen), bevor die Liste erscheint.
+            try? await SharingManager.shared.listeAktualisieren(liste)
             try? await SharingManager.shared.personZuordnungenAktualisieren(liste)
             if let zugeordnet = await SharingManager.shared.eigenePerson(in: liste) {
                 meinePerson = zugeordnet
@@ -495,36 +593,6 @@ struct PackingListeDetailView: View {
             meinePerson = gefunden
         } else if meinePerson == nil {
             zeigePersonAuswahl = true
-        }
-    }
-}
-
-/// Welche Artikel die Packliste zeigt.
-///
-/// Der Rohwert landet in den UserDefaults - darum ein String und nicht die Position.
-enum AnzeigeModus: String, CaseIterable, Identifiable {
-    /// Alle Artikel, erledigte eingeschlossen.
-    case alle
-    /// Nur, was die aktive Person noch nicht gepackt hat.
-    case offen
-    /// Nur Artikel, die einer für alle packt - erledigte eingeschlossen.
-    case gemeinsam
-    
-    var id: Self { self }
-    
-    var titel: String {
-        switch self {
-        case .alle: "Alle anzeigen"
-        case .offen: "Nur Offene anzeigen"
-        case .gemeinsam: "Nur Gemeinsames anzeigen"
-        }
-    }
-    
-    var symbol: String {
-        switch self {
-        case .alle: "list.bullet"
-        case .offen: "circle"
-        case .gemeinsam: "person.2"
         }
     }
 }
